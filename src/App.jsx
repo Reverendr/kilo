@@ -413,8 +413,8 @@ function ExCard({plan, exDB, onLog, todayLogs, allLogs, bw}) {
               {l:"Obj. volume",v:objVol>0?`${objVol.toFixed(0)} kg`:"—",c:col},
             ].map(({l,v,c})=>(
               <div key={l} style={{background:T.card2,borderRadius:8,padding:"7px 10px"}}>
-                <div style={{fontSize:9,color:T.dim,fontFamily:"'IBM Plex Mono'",textTransform:"uppercase",letterSpacing:.8,marginBottom:2}}>{l}</div>
-                <div style={{fontSize:12,fontFamily:"'IBM Plex Mono'",color:c,fontWeight:700,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{v}</div>
+                <div style={{fontSize:11,color:T.dim,fontFamily:"'IBM Plex Mono'",textTransform:"uppercase",letterSpacing:.8,marginBottom:2}}>{l}</div>
+                <div style={{fontSize:13,fontFamily:"'IBM Plex Mono'",color:c,fontWeight:700,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{v}</div>
               </div>
             ))}
           </div>
@@ -567,15 +567,15 @@ function Planner({plans, setPlans, exDB, allLogs, bw}) {
             {l:"PR Volume",v:st?.prVol>0?`${st.prVol.toFixed(0)} kg`:"—",c:"#d97706"},
           ].map(({l,v,c})=>(
             <div key={l} style={{background:T.card2,borderRadius:8,padding:"8px 10px"}}>
-              <div style={{fontSize:9,color:T.dim,fontFamily:"'IBM Plex Mono'",textTransform:"uppercase",letterSpacing:.8,marginBottom:2}}>{l}</div>
-              <div style={{fontSize:12,color:c,fontWeight:700,fontFamily:"'IBM Plex Mono'"}}>{v}</div>
+              <div style={{fontSize:11,color:T.dim,fontFamily:"'IBM Plex Mono'",textTransform:"uppercase",letterSpacing:.8,marginBottom:2}}>{l}</div>
+              <div style={{fontSize:13,color:c,fontWeight:700,fontFamily:"'IBM Plex Mono'"}}>{v}</div>
             </div>
           ))}
         </div>
         {/* Last 3 sessions */}
         {allLogs.filter(l=>l.exo===pickedEx.name).sort((a,b)=>frSort(b.date,a.date)).slice(0,3).map(l=>(
           <div key={l.date+l.exo} style={{borderTop:`1px solid ${T.border}`,marginTop:10,paddingTop:10}}>
-            <div style={{fontSize:10,color:T.dim,fontFamily:"'IBM Plex Mono'",marginBottom:3}}>{l.date} — {l.volume.toFixed(0)} kg vol</div>
+            <div style={{fontSize:11,color:T.dim,fontFamily:"'IBM Plex Mono'",marginBottom:3}}>{l.date} — {l.volume.toFixed(0)} kg vol</div>
             <div style={{fontSize:12,fontFamily:"'IBM Plex Mono'",color:T.text}}>{l.series.map(s=>`${s.poids}×${s.reps}`).join("  ")}</div>
           </div>
         ))}
@@ -605,7 +605,7 @@ function Planner({plans, setPlans, exDB, allLogs, bw}) {
         {dates.map(d=>(
           <button key={d} onClick={()=>setSel(d)} style={{background:sel===d?T.text:T.card,color:sel===d?T.bg:d===today?"#dc2626":T.dim,border:`1px solid ${sel===d?T.text:d===today?"#dc262644":T.border}`,borderRadius:8,padding:"6px 12px",fontFamily:"'IBM Plex Mono'",fontSize:11,cursor:"pointer",fontWeight:700,textAlign:"left"}}>
             <div>{d}</div>
-            <div style={{fontSize:9,opacity:.7,fontWeight:400}}>{dowOf(d)}</div>
+            <div style={{fontSize:11,opacity:.7,fontWeight:400}}>{dowOf(d)}</div>
           </button>
         ))}
         {showND?(
@@ -629,7 +629,7 @@ function Planner({plans, setPlans, exDB, allLogs, bw}) {
       ):(
         <div style={{display:"flex",flexDirection:"column",gap:4}}>
           {/* Header */}
-          <div style={{display:"grid",gridTemplateColumns:"1fr 90px 90px 70px 60px 40px",gap:6,padding:"6px 10px",fontSize:9,color:T.faint,fontFamily:"'IBM Plex Mono'",textTransform:"uppercase",letterSpacing:.8}}>
+          <div style={{display:"grid",gridTemplateColumns:"1fr 90px 90px 70px 60px 40px",gap:6,padding:"6px 10px",fontSize:10,color:T.faint,fontFamily:"'IBM Plex Mono'",textTransform:"uppercase",letterSpacing:.8}}>
             <div>Exercice</div><div style={{textAlign:"center"}}>Objectif</div><div style={{textAlign:"center"}}>Dernière perf</div><div style={{textAlign:"center"}}>PR poids</div><div style={{textAlign:"center"}}>Obj.vol</div><div/>
           </div>
           {currPlan.map((p,i)=>{
@@ -655,10 +655,10 @@ function Planner({plans, setPlans, exDB, allLogs, bw}) {
               <div key={i} style={{background:T.card,borderLeft:`3px solid ${c}`,borderRadius:10,padding:"10px 12px",marginBottom:2,display:"grid",gridTemplateColumns:"1fr 90px 90px 70px 60px 40px",gap:6,alignItems:"center"}}>
                 <div>
                   <div style={{fontWeight:700,fontSize:13,color:T.text}}>{p.exo}</div>
-                  <div style={{fontSize:10,color:T.dim,fontFamily:"'IBM Plex Mono'",marginTop:1}}>{ex?.muscle}</div>
+                  <div style={{fontSize:11,color:T.dim,fontFamily:"'IBM Plex Mono'",marginTop:1}}>{ex?.muscle}</div>
                 </div>
                 <div style={{textAlign:"center",fontFamily:"'IBM Plex Mono'",fontSize:11,color:c,fontWeight:700}}>{p.objPoids>0?`${p.objPoids}kg`:"PDC"}<span style={{color:T.dim,fontWeight:400}}> ×{p.objReps}×{p.objSeries}</span></div>
-                <div style={{textAlign:"center",fontFamily:"'IBM Plex Mono'",fontSize:10,color:T.dim,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{s.lastPerf}</div>
+                <div style={{textAlign:"center",fontFamily:"'IBM Plex Mono'",fontSize:11,color:T.dim,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{s.lastPerf}</div>
                 <div style={{textAlign:"center",fontFamily:"'IBM Plex Mono'",fontSize:11,color:"#16a34a",fontWeight:700}}>{s.prPoids>0?`${s.prPoids.toFixed(1)}kg`:"—"}</div>
                 <div style={{textAlign:"center",fontFamily:"'IBM Plex Mono'",fontSize:11,color:"#d97706",fontWeight:700}}>{ov>0?`${ov.toFixed(0)}kg`:"—"}</div>
                 <div style={{display:"flex",gap:2,justifyContent:"flex-end"}}>
@@ -749,7 +749,7 @@ function Stats({logs, exDB}) {
           {l:"Moy./séance",v:nSess>0?`${(totalVol/nSess/1000).toFixed(1)}t`:"—",c:"#d97706"},
         ].map(({l,v,c})=>(
           <div key={l} style={{background:T.card,borderRadius:12,padding:"14px 16px",border:`1px solid ${T.border}`}}>
-            <div style={{fontSize:9,color:T.dim,fontFamily:"'IBM Plex Mono'",textTransform:"uppercase",letterSpacing:1,marginBottom:6}}>{l}</div>
+            <div style={{fontSize:11,color:T.dim,fontFamily:"'IBM Plex Mono'",textTransform:"uppercase",letterSpacing:1,marginBottom:6}}>{l}</div>
             <div style={{fontFamily:"'Bebas Neue'",fontSize:32,color:c,letterSpacing:1}}>{v}</div>
           </div>
         ))}
@@ -788,7 +788,7 @@ function Stats({logs, exDB}) {
               })()}
             </svg>
           </div>
-          <div style={{display:"flex",justifyContent:"space-between",marginTop:4,fontSize:9,color:T.faint,fontFamily:"'IBM Plex Mono'"}}><span>{chartData[0][0]}</span><span>{chartData[chartData.length-1][0]}</span></div>
+          <div style={{display:"flex",justifyContent:"space-between",marginTop:4,fontSize:10,color:T.faint,fontFamily:"'IBM Plex Mono'"}}><span>{chartData[0][0]}</span><span>{chartData[chartData.length-1][0]}</span></div>
         </div>
       )}
 
@@ -876,12 +876,12 @@ function LogEditor({log, exDB, onSave, onClose, bw}) {
           </div>
           <button onClick={onClose} style={{background:"none",border:"none",color:T.dim,fontSize:24,cursor:"pointer"}}>×</button>
         </div>
-        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:10,fontSize:10,color:T.faint,fontFamily:"'IBM Plex Mono'",textTransform:"uppercase",letterSpacing:.8}}>
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:10,fontSize:12,color:T.faint,fontFamily:"'IBM Plex Mono'",textTransform:"uppercase",letterSpacing:.8}}>
           <div style={{textAlign:"center"}}>kg affiché</div><div style={{textAlign:"center"}}>reps</div>
         </div>
         {series.map((s,i)=>(
           <div key={i} style={{display:"grid",gridTemplateColumns:"20px 1fr 1fr 30px",gap:6,marginBottom:8,alignItems:"center"}}>
-            <div style={{fontSize:10,color:T.faint,textAlign:"center",fontFamily:"'IBM Plex Mono'"}}>{i+1}</div>
+            <div style={{fontSize:12,color:T.faint,textAlign:"center",fontFamily:"'IBM Plex Mono'"}}>{i+1}</div>
             <input type="number" step="0.5" value={s.poids} onChange={e=>upd(i,"poids",e.target.value)} style={{...T.inp,textAlign:"center",fontSize:18,fontWeight:700,padding:"11px 4px"}}/>
             <input type="number" value={s.reps} onChange={e=>upd(i,"reps",e.target.value)} style={{...T.inp,textAlign:"center",fontSize:18,fontWeight:700,padding:"11px 4px"}}/>
             <button onClick={()=>setSeries(p=>p.filter((_,j)=>j!==i))} style={{background:"none",border:"none",cursor:"pointer",color:T.faint,fontSize:18}}>×</button>
@@ -994,8 +994,9 @@ export default function App() {
 
   const typeColors=Object.entries(TYPE_COLORS);
 
-  const navBtn=(key,label)=>(
-    <button key={key} onClick={()=>setTab(key)} style={{flex:1,background:tab===key?T.text:"none",color:tab===key?T.bg:T.dim,border:"none",borderRadius:8,padding:"9px 4px",fontFamily:"'Bebas Neue'",fontSize:14,letterSpacing:1,cursor:"pointer",transition:"all .15s"}}>
+  const navBtn=(key,label,icon)=>(
+    <button key={key} onClick={()=>setTab(key)} style={{flex:1,background:tab===key?T.text:"none",color:tab===key?T.bg:T.dim,border:"none",borderRadius:8,padding:"5px 4px",fontFamily:"'Bebas Neue'",fontSize:11,letterSpacing:.5,cursor:"pointer",transition:"all .15s",display:"flex",flexDirection:"column",alignItems:"center",gap:2}}>
+      <span style={{fontSize:20,lineHeight:1}}>{icon}</span>
       {label}
     </button>
   );
@@ -1022,9 +1023,9 @@ export default function App() {
               <button onClick={()=>{setBw(pf(bwInput));setShowBwEdit(false);}} style={btn(T.text,T.bg,{padding:"5px 8px",fontSize:12})}>✓</button>
             </div>
           ):(
-            <button onClick={()=>setShowBwEdit(true)} style={{background:T.faint,color:T.dim,border:"none",borderRadius:8,padding:"5px 10px",fontSize:11,cursor:"pointer",fontFamily:"'IBM Plex Mono'"}}>PDC {bw}kg</button>
+            <button onClick={()=>setShowBwEdit(true)} style={{background:T.faint,color:T.dim,border:"none",borderRadius:8,padding:"9px 14px",fontSize:12,cursor:"pointer",fontFamily:"'IBM Plex Mono'"}}>PDC {bw}kg</button>
           )}
-          <button onClick={()=>setTimer(true)} style={{background:T.faint,color:T.dim,border:"none",borderRadius:8,padding:"5px 10px",fontSize:11,cursor:"pointer"}}>⏱</button>
+          <button onClick={()=>setTimer(true)} style={{background:T.faint,color:T.dim,border:"none",borderRadius:8,padding:"9px 14px",fontSize:14,cursor:"pointer"}}>⏱</button>
           {saveStatus==="saving"&&<span style={{fontSize:9,color:T.faint,fontFamily:"'IBM Plex Mono'"}}>💾…</span>}
           {saveStatus==="saved"&&<span style={{fontSize:9,color:"#16a34a",fontFamily:"'IBM Plex Mono'"}}>✓ sauvé</span>}
           {saveStatus==="error"&&<span style={{fontSize:9,color:"#dc2626",fontFamily:"'IBM Plex Mono'"}}>⚠ erreur</span>}
@@ -1032,7 +1033,7 @@ export default function App() {
       </div>
 
       {/* CONTENT */}
-      <div style={{padding:"14px 14px 80px"}}>
+      <div style={{paddingTop:14,paddingLeft:14,paddingRight:14,paddingBottom:"calc(90px + env(safe-area-inset-bottom, 0px))"}}>
 
         {/* ── SÉANCE ── */}
         {tab==="seance"&&(
@@ -1046,14 +1047,21 @@ export default function App() {
                 </div>
               ))}
             </div>
-            <div style={{background:T.card,borderRadius:12,padding:"12px 14px",marginBottom:12,display:"flex",justifyContent:"space-between",alignItems:"center",border:`1px solid ${T.border}`}}>
-              <div>
-                <div style={{fontWeight:700,fontSize:16,color:T.text}}>Séance du jour</div>
-                <div style={{fontSize:12,color:T.dim,marginTop:2}}>
-                  {todayPlan.length>0?<><span style={{color:"#16a34a"}}>{todayLogs.length}</span>/{todayPlan.length} validés</>:<span style={{color:"#d97706"}}>Aucun plan</span>}
+            <div style={{background:T.card,borderRadius:12,padding:"12px 14px",marginBottom:12,border:`1px solid ${T.border}`}}>
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:todayPlan.length>0?8:0}}>
+                <div>
+                  <div style={{fontWeight:700,fontSize:16,color:T.text}}>Séance du jour</div>
+                  <div style={{fontSize:12,color:T.dim,marginTop:2}}>
+                    {todayPlan.length>0?<><span style={{color:"#16a34a",fontWeight:700}}>{todayLogs.length}</span>/{todayPlan.length} validés</>:<span style={{color:"#d97706"}}>Aucun plan</span>}
+                  </div>
                 </div>
+                {todayPlan.length===0&&<button onClick={()=>setTab("plan")} style={btn("#dc2626","#fff",{padding:"9px 14px",fontSize:13})}>Planifier →</button>}
               </div>
-              {todayPlan.length===0&&<button onClick={()=>setTab("plan")} style={btn("#dc2626","#fff",{padding:"9px 14px",fontSize:13})}>Planifier →</button>}
+              {todayPlan.length>0&&(
+                <div style={{height:5,background:T.faint,borderRadius:3}}>
+                  <div style={{width:`${Math.round(todayLogs.length/todayPlan.length*100)}%`,height:"100%",background:todayLogs.length===todayPlan.length?"#16a34a":"#dc2626",borderRadius:3,transition:"width .4s"}}/>
+                </div>
+              )}
             </div>
             {todayPlan.length===0?(
               <div style={{textAlign:"center",padding:48,color:T.faint}}>
@@ -1087,25 +1095,44 @@ export default function App() {
                 {logDates.map(d=><option key={d}>{d}</option>)}
               </select>
             </div>
-            <div style={{display:"flex",flexDirection:"column",gap:6}}>
-              {filteredLogs.map((log,i)=>{
-                const ex=exDB.find(e=>e.name===log.exo);
-                const lc=tc(ex?.type||"Push").bg;
+            <div style={{display:"flex",flexDirection:"column"}}>
+              {Object.entries(
+                filteredLogs.reduce((acc,log)=>{(acc[log.date]=acc[log.date]||[]).push(log);return acc;},{})
+              ).sort((a,b)=>frSort(b[0],a[0])).map(([date,entries])=>{
+                const dateVol=entries.reduce((s,l)=>s+(l.volume||0),0);
                 return(
-                  <div key={i} style={{background:T.card,borderLeft:`3px solid ${lc}`,borderRadius:10,padding:"11px 14px",border:`1px solid ${T.border}`}}>
-                    <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:6}}>
-                      <div style={{flex:1,paddingRight:8}}>
-                        <div style={{fontWeight:700,fontSize:14,color:T.text}}>{log.exo}</div>
-                        <div style={{fontSize:10,color:T.faint,fontFamily:"'IBM Plex Mono'",marginTop:2}}>{log.date} · {dowOf(log.date)}{log.note&&` · "${log.note}"`}</div>
+                  <div key={date} style={{marginBottom:20}}>
+                    {/* Date header */}
+                    <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:10}}>
+                      <div style={{flex:1,height:1,background:T.border}}/>
+                      <div style={{textAlign:"center",lineHeight:1.2}}>
+                        <div style={{fontFamily:"'Bebas Neue'",fontSize:17,letterSpacing:2,color:T.text}}>{dowOf(date)}</div>
+                        <div style={{fontFamily:"'IBM Plex Mono'",fontSize:11,color:T.dim,marginTop:2}}>{date} · {dateVol.toFixed(0)} kg</div>
                       </div>
-                      <div style={{display:"flex",gap:8,alignItems:"center"}}>
-                        <div style={{fontFamily:"'IBM Plex Mono'",fontWeight:700,color:lc,fontSize:13}}>{(log.volume||0).toFixed(0)} kg</div>
-                        <button onClick={()=>setLogEdit(log)} style={{background:"none",border:"none",cursor:"pointer",color:T.dim,fontSize:15,padding:"2px"}}>✏️</button>
-                      </div>
+                      <div style={{flex:1,height:1,background:T.border}}/>
                     </div>
-                    <div style={{fontFamily:"'IBM Plex Mono'",fontSize:12,color:T.dim}}>
-                      {log.series.map((s,j)=><span key={j} style={{marginRight:12}}><span style={{color:T.text,fontWeight:700}}>{s.poids}</span>kg × <span style={{color:T.text,fontWeight:700}}>{s.reps}</span></span>)}
-                    </div>
+                    {/* Entries */}
+                    {entries.map((log,i)=>{
+                      const ex=exDB.find(e=>e.name===log.exo);
+                      const lc=tc(ex?.type||"Push").bg;
+                      return(
+                        <div key={i} style={{background:T.card,borderLeft:`3px solid ${lc}`,borderRadius:10,padding:"11px 14px",border:`1px solid ${T.border}`,marginBottom:6}}>
+                          <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:6}}>
+                            <div style={{flex:1,paddingRight:8}}>
+                              <div style={{fontWeight:700,fontSize:14,color:T.text}}>{log.exo}</div>
+                              {log.note&&<div style={{fontSize:11,color:T.faint,fontFamily:"'IBM Plex Mono'",marginTop:2}}>"{log.note}"</div>}
+                            </div>
+                            <div style={{display:"flex",gap:8,alignItems:"center"}}>
+                              <div style={{fontFamily:"'IBM Plex Mono'",fontWeight:700,color:lc,fontSize:13}}>{(log.volume||0).toFixed(0)} kg</div>
+                              <button onClick={()=>setLogEdit(log)} style={{background:"none",border:"none",cursor:"pointer",color:T.dim,fontSize:15,padding:"4px"}}>✏️</button>
+                            </div>
+                          </div>
+                          <div style={{fontFamily:"'IBM Plex Mono'",fontSize:12,color:T.dim}}>
+                            {log.series.map((s,j)=><span key={j} style={{marginRight:12}}><span style={{color:T.text,fontWeight:700}}>{s.poids}</span>kg × <span style={{color:T.text,fontWeight:700}}>{s.reps}</span></span>)}
+                          </div>
+                        </div>
+                      );
+                    })}
                   </div>
                 );
               })}
@@ -1162,8 +1189,8 @@ export default function App() {
       </div>
 
       {/* BOTTOM NAV */}
-      <div style={{position:"fixed",bottom:0,left:"50%",transform:"translateX(-50%)",width:"100%",maxWidth:600,background:T.card,borderTop:`1px solid ${T.border}`,display:"flex",zIndex:90,padding:"6px 8px"}}>
-        {[["seance","Séance"],["plan","Planifier"],["logs","Logs"],["stats","Stats"],["exos","Exos"]].map(([k,l])=>navBtn(k,l))}
+      <div style={{position:"fixed",bottom:0,left:"50%",transform:"translateX(-50%)",width:"100%",maxWidth:600,background:T.card,borderTop:`1px solid ${T.border}`,display:"flex",zIndex:90,paddingTop:8,paddingLeft:8,paddingRight:8,paddingBottom:"calc(8px + env(safe-area-inset-bottom, 0px))"}}>
+        {[["seance","Séance","🏋️"],["plan","Plan","📋"],["logs","Logs","📝"],["stats","Stats","📊"],["exos","Exos","💪"]].map(([k,l,i])=>navBtn(k,l,i))}
       </div>
     </div>
   );
