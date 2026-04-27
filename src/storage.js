@@ -1,12 +1,8 @@
-// storage.js — Supabase backend pour la persistance multi-device
-// Les données sont identifiées par un device_id unique généré localement
-
 const SUPABASE_URL = 'https://gwohnwolpabyenpdnega.supabase.co'
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imd3b2hud29scGFieWVucGRuZWdhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzcwMjc2MjcsImV4cCI6MjA5MjYwMzYyN30.CjQ_uao-vgBTqeUUBZ_bSWka2xDRa5jHXjglMOs4Oj0'
 const LOCAL_KEY = 'kilo-data'
 const DEVICE_KEY = 'kilo-device-id'
 
-// Génère ou récupère un device_id unique et stable
 function getDeviceId() {
   let id = localStorage.getItem(DEVICE_KEY)
   if (!id) {
@@ -35,37 +31,49 @@ async function supabaseFetch(path, options = {}) {
   return res.json()
 }
 
-export async function loadData() {
-  const deviceId = getDeviceId()
-  try {
-    // Essaie Supabase en priorité
-    const rows = await supabaseFetch(`kilo_data?device_id=eq.${encodeURIComponent(deviceId)}&select=data`)
-    if (rows && rows.length > 0) {
-      // Synchronise aussi localStorage comme cache
-      localStorage.setItem(LOCAL_KEY, JSON.stringify(rows[0].data))
-      return rows[0].data
-    }
-  } catch (e) {
-    console.warn('Supabase unavailable, falling back to localStorage:', e)
-  }
-  // Fallback localStorage (offline)
+function readLocal() {
   try {
     const raw = localStorage.getItem(LOCAL_KEY)
-    if (raw) return JSON.parse(raw)
-  } catch (e) {}
-  return null
+    return raw ? JSON.parse(raw) : null
+  } catch { return null }
+}
+
+export async function loadData() {
+  const deviceId = getDeviceId()
+  const localData = readLocal()
+
+  try {
+    const rows = await supabaseFetch(`kilo_data?device_id=eq.${encodeURIComponent(deviceId)}&select=data`)
+    if (rows && rows.length > 0) {
+      const remoteData = rows[0].data
+      const remoteTs = remoteData?._savedAt || 0
+      const localTs = localData?._savedAt || 0
+
+      if (remoteTs >= localTs) {
+        // Remote is more recent or equal — use it as source of truth
+        localStorage.setItem(LOCAL_KEY, JSON.stringify(remoteData))
+        return remoteData
+      }
+      // Local is more recent (e.g. a previous Supabase save failed) — re-push it
+      saveData(localData).catch(() => {})
+      return localData
+    }
+  } catch (e) {
+    console.warn('Supabase unavailable, using localStorage:', e)
+  }
+  return localData
 }
 
 export async function saveData(data) {
   const deviceId = getDeviceId()
-  // Sauvegarde localStorage en premier (immédiat, offline-first)
-  try { localStorage.setItem(LOCAL_KEY, JSON.stringify(data)) } catch (e) {}
-  // Puis Supabase (upsert)
+  // Preserve existing _savedAt only when re-syncing; otherwise stamp now
+  const payload = { ...data, _savedAt: data._savedAt ?? Date.now() }
+  try { localStorage.setItem(LOCAL_KEY, JSON.stringify(payload)) } catch (e) {}
   try {
     await supabaseFetch('kilo_data', {
       method: 'POST',
       headers: { 'Prefer': 'resolution=merge-duplicates,return=minimal' },
-      body: JSON.stringify({ device_id: deviceId, data, updated_at: new Date().toISOString() }),
+      body: JSON.stringify({ device_id: deviceId, data: payload, updated_at: new Date().toISOString() }),
     })
     return true
   } catch (e) {
@@ -96,7 +104,6 @@ export async function importJSON(file) {
   })
 }
 
-// Retourne le device_id pour l'afficher dans les settings
 export function getDeviceInfo() {
   return { deviceId: getDeviceId() }
 }

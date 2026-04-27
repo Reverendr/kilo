@@ -71,9 +71,12 @@ const INIT_EX = [
   {name:"Gainage au sol",              muscle:"Abdos",      type:"Gainage", mult:1, barAdd:0},
 ];
 
-/* ─── INITIAL PLANS ──────────────────────────────────────────────────────── */
-const INIT_PLANS = {
-  "20/04/2026":[
+/* ─── DAYS OF WEEK ───────────────────────────────────────────────────────── */
+const DAYS_OF_WEEK = ["Lundi","Mardi","Mercredi","Jeudi","Vendredi","Samedi","Dimanche"];
+
+/* ─── WEEK PLAN (par jour, pas par date) ────────────────────────────────── */
+const INIT_WEEK_PLAN = {
+  "Lundi":[
     {exo:"Dvp incliné barre",objPoids:25,objReps:6,objSeries:3},
     {exo:"Dvp militaire Smith",objPoids:17.5,objReps:8,objSeries:3},
     {exo:"Élévations latérales",objPoids:7,objReps:10,objSeries:3},
@@ -86,7 +89,7 @@ const INIT_PLANS = {
     {exo:"Curl biceps haltères",objPoids:12,objReps:9,objSeries:3},
     {exo:"Gainage au sol",objPoids:0,objReps:1,objSeries:3},
   ],
-  "22/04/2026":[
+  "Mercredi":[
     {exo:"Dvp couché barre",objPoids:20,objReps:8,objSeries:3},
     {exo:"Tractions",objPoids:0,objReps:5,objSeries:4},
     {exo:"Élévations latérales",objPoids:9,objReps:10,objSeries:3},
@@ -99,7 +102,7 @@ const INIT_PLANS = {
     {exo:"Mollets machine",objPoids:100,objReps:10,objSeries:3},
     {exo:"Gainage au sol",objPoids:0,objReps:1,objSeries:3},
   ],
-  "24/04/2026":[
+  "Vendredi":[
     {exo:"Tractions",objPoids:0,objReps:5,objSeries:4},
     {exo:"Dvp couché serré",objPoids:17.5,objReps:8,objSeries:3},
     {exo:"Rowing bûcheron",objPoids:22,objReps:10,objSeries:3},
@@ -124,6 +127,7 @@ const realW = (poids, ex, bw=0) => {
 const calcVol = (series, ex, bw=0) => series.reduce((s,r) => s + realW(r.poids,ex,bw)*(pf(r.reps)||0), 0);
 const frSort = (a, b) => { const [da,ma,ya]=a.split("/").map(Number),[db,mb,yb]=b.split("/").map(Number); return new Date(ya,ma-1,da)-new Date(yb,mb-1,db); };
 const todayFR = () => new Date().toLocaleDateString("fr-FR");
+const todayWeekday = () => { const w=new Date().toLocaleDateString("fr-FR",{weekday:"long"}); return w[0].toUpperCase()+w.slice(1); };
 const todayLabel = () => { const d=new Date(); const day=d.toLocaleDateString("fr-FR",{weekday:"long"}); return day[0].toUpperCase()+day.slice(1)+" "+d.toLocaleDateString("fr-FR",{day:"numeric",month:"long",year:"numeric"}); };
 const dowOf = s => { const [d,m,y]=s.split("/").map(Number); const w=new Date(y,m-1,d).toLocaleDateString("fr-FR",{weekday:"long"}); return w[0].toUpperCase()+w.slice(1); };
 
@@ -464,22 +468,33 @@ function ExCard({plan, exDB, onLog, todayLogs, allLogs, bw}) {
 }
 
 /* ─── PLANNER ────────────────────────────────────────────────────────────── */
-function Planner({plans, setPlans, exDB, allLogs, bw}) {
-  const today = todayFR();
-  const dates = Object.keys(plans).sort(frSort);
-  const [sel,setSel]=useState(dates.includes(today)?today:(dates[dates.length-1]||today));
+function Planner({weekPlan, setWeekPlan, exDB, allLogs, bw}) {
+  const days = Object.keys(weekPlan).sort((a,b)=>DAYS_OF_WEEK.indexOf(a)-DAYS_OF_WEEK.indexOf(b));
+  const [sel,setSel]=useState(days[0]||"");
   const [step,setStep]=useState("list"); // list | addex | confirm
   const [search,setSearch]=useState("");
   const [pickedEx,setPickedEx]=useState(null);
   const [form,setForm]=useState({objPoids:"",objReps:"8",objSeries:"3"});
   const [editIdx,setEditIdx]=useState(null);
   const [editForm,setEditForm]=useState({});
-  const [newDate,setNewDate]=useState("");
-  const [showND,setShowND]=useState(false);
+  const [showAddDay,setShowAddDay]=useState(false);
   const [muscleFilter,setMuscleFilter]=useState("Tous");
 
-  const currPlan = plans[sel]||[];
-  const set = (d,p) => setPlans(prev=>({...prev,[d]:p}));
+  useEffect(()=>{
+    const d=Object.keys(weekPlan).sort((a,b)=>DAYS_OF_WEEK.indexOf(a)-DAYS_OF_WEEK.indexOf(b));
+    if(d.length>0&&!weekPlan[sel])setSel(d[0]);
+  },[JSON.stringify(Object.keys(weekPlan))]);
+
+  const currPlan = weekPlan[sel]||[];
+  const set = (day,p) => setWeekPlan(prev=>({...prev,[day]:p}));
+  const availableDays = DAYS_OF_WEEK.filter(d=>!weekPlan[d]);
+
+  const addDay=(day)=>{setWeekPlan(prev=>({...prev,[day]:[]}));setSel(day);setShowAddDay(false);};
+  const removeDay=(day)=>{
+    setWeekPlan(prev=>{const n={...prev};delete n[day];return n;});
+    const remaining=Object.keys(weekPlan).filter(d=>d!==day).sort((a,b)=>DAYS_OF_WEEK.indexOf(a)-DAYS_OF_WEEK.indexOf(b));
+    setSel(remaining[0]||"");
+  };
 
   // Stats per exercise
   const exStats = useMemo(()=>{
@@ -600,32 +615,41 @@ function Planner({plans, setPlans, exDB, allLogs, bw}) {
   // Main list
   return(
     <div>
-      {/* Date bar */}
+      {/* Day bar */}
       <div style={{display:"flex",gap:6,marginBottom:14,flexWrap:"wrap",alignItems:"center"}}>
-        {dates.map(d=>(
-          <button key={d} onClick={()=>setSel(d)} style={{background:sel===d?T.text:T.card,color:sel===d?T.bg:d===today?"#dc2626":T.dim,border:`1px solid ${sel===d?T.text:d===today?"#dc262644":T.border}`,borderRadius:8,padding:"6px 12px",fontFamily:"'IBM Plex Mono'",fontSize:11,cursor:"pointer",fontWeight:700,textAlign:"left"}}>
-            <div>{d}</div>
-            <div style={{fontSize:11,opacity:.7,fontWeight:400}}>{dowOf(d)}</div>
+        {days.map(d=>(
+          <button key={d} onClick={()=>setSel(d)} style={{background:sel===d?T.text:T.card,color:sel===d?T.bg:T.dim,border:`1px solid ${sel===d?T.text:T.border}`,borderRadius:8,padding:"8px 16px",fontFamily:"'IBM Plex Mono'",fontSize:12,cursor:"pointer",fontWeight:700}}>
+            {d}
           </button>
         ))}
-        {showND?(
-          <div style={{display:"flex",gap:5,alignItems:"center"}}>
-            <input value={newDate} onChange={e=>setNewDate(e.target.value)} placeholder="JJ/MM/AAAA" style={{...T.inp,width:120,fontSize:12,padding:"6px 8px"}}/>
-            <button onClick={createDate} style={btn(T.text,T.bg,{padding:"6px 10px",fontSize:12})}>✓</button>
-            <button onClick={()=>setShowND(false)} style={btn(T.faint,T.dim,{padding:"6px 10px",fontSize:12})}>✕</button>
-          </div>
-        ):(
-          <button onClick={()=>setShowND(true)} style={btn(T.faint,T.dim,{padding:"6px 12px",fontSize:12})}>+ Date</button>
+        {availableDays.length>0&&(
+          showAddDay?(
+            <div style={{display:"flex",gap:5,flexWrap:"wrap",alignItems:"center"}}>
+              {availableDays.map(d=>(
+                <button key={d} onClick={()=>addDay(d)} style={{background:T.card,color:T.dim,border:`1px solid ${T.border}`,borderRadius:8,padding:"8px 14px",fontFamily:"'IBM Plex Mono'",fontSize:12,cursor:"pointer"}}>{d}</button>
+              ))}
+              <button onClick={()=>setShowAddDay(false)} style={btn(T.faint,T.dim,{padding:"6px 10px",fontSize:12})}>✕</button>
+            </div>
+          ):(
+            <button onClick={()=>setShowAddDay(true)} style={btn(T.faint,T.dim,{padding:"8px 14px",fontSize:12})}>+ Jour</button>
+          )
         )}
       </div>
 
+      {!sel?(
+        <div style={{textAlign:"center",padding:48,color:T.dim,fontSize:14}}>Aucun jour planifié — appuyez sur "+ Jour"</div>
+      ):(
+      <>
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
-        <div style={{fontSize:15,fontWeight:700,color:T.text}}>{dowOf(sel)} {sel} <span style={{color:T.dim,fontWeight:400,fontSize:13}}>({currPlan.length} exo{currPlan.length>1?"s":""})</span></div>
-        <button onClick={()=>setStep("addex")} style={btn()}>+ Exercice</button>
+        <div style={{fontSize:15,fontWeight:700,color:T.text}}>{sel} <span style={{color:T.dim,fontWeight:400,fontSize:13}}>({currPlan.length} exo{currPlan.length>1?"s":""})</span></div>
+        <div style={{display:"flex",gap:6}}>
+          <button onClick={()=>setStep("addex")} style={btn()}>+ Exercice</button>
+          <button onClick={()=>removeDay(sel)} style={{background:"none",border:`1px solid ${T.border}`,borderRadius:10,padding:"10px 12px",color:T.dim,fontSize:16,cursor:"pointer"}}>🗑</button>
+        </div>
       </div>
 
       {currPlan.length===0?(
-        <div style={{textAlign:"center",padding:48,color:T.dim,fontSize:14}}>Aucun exercice — appuyez sur "+ Exercice"</div>
+        <div style={{textAlign:"center",padding:32,color:T.dim,fontSize:14}}>Aucun exercice — appuyez sur "+ Exercice"</div>
       ):(
         <div style={{display:"flex",flexDirection:"column",gap:4}}>
           {/* Header */}
@@ -669,6 +693,8 @@ function Planner({plans, setPlans, exDB, allLogs, bw}) {
             );
           })}
         </div>
+      )}
+      </>
       )}
     </div>
   );
@@ -934,7 +960,7 @@ export default function App() {
   const [exModal,setExModal]=useState(null);
   const [logEdit,setLogEdit]=useState(null);
   const [exDB,setExDB]=useState(INIT_EX);
-  const [plans,setPlans]=useState(INIT_PLANS);
+  const [weekPlan,setWeekPlan]=useState(INIT_WEEK_PLAN);
   const [logs,setLogs]=useState(INIT_LOGS);
   const [logSearch,setLogSearch]=useState("");
   const [logDate,setLogDate]=useState("Tous");
@@ -952,8 +978,14 @@ export default function App() {
       try {
         const data = await loadData();
         if(data) {
-          if(data.logs)  setLogs(data.logs);
-          if(data.plans) setPlans(data.plans);
+          if(data.logs)     setLogs(data.logs);
+          if(data.weekPlan) setWeekPlan(data.weekPlan);
+          else if(data.plans) {
+            // Migration depuis l'ancien format date → jour de semaine
+            const migrated={};
+            Object.entries(data.plans).forEach(([date,exos])=>{const day=dowOf(date);if(!migrated[day])migrated[day]=exos;});
+            if(Object.keys(migrated).length>0) setWeekPlan(migrated);
+          }
           if(data.exDB)  setExDB(data.exDB);
           if(data.bw!=null) { setBw(data.bw); setBwInput(String(data.bw)); }
         }
@@ -969,16 +1001,16 @@ export default function App() {
     setSaveStatus("saving");
     saveTimer.current=setTimeout(async()=>{
       try {
-        await saveData({ logs, plans, exDB, bw });
+        await saveData({ logs, weekPlan, exDB, bw });
         setSaveStatus("saved");
         setTimeout(()=>setSaveStatus(null),2000);
       } catch(e){ setSaveStatus("error"); console.error("Save error",e); }
     },800);
     return ()=>clearTimeout(saveTimer.current);
-  },[logs,plans,exDB,bw,loaded]);
+  },[logs,weekPlan,exDB,bw,loaded]);
 
   const today=todayFR();
-  const todayPlan=plans[today]||[];
+  const todayPlan=weekPlan[todayWeekday()]||[];
   const todayLogs=logs.filter(l=>l.date===today);
 
   const addLog=useCallback((entry)=>{
@@ -994,9 +1026,8 @@ export default function App() {
 
   const typeColors=Object.entries(TYPE_COLORS);
 
-  const navBtn=(key,label,icon)=>(
-    <button key={key} onClick={()=>setTab(key)} style={{flex:1,background:tab===key?T.text:"none",color:tab===key?T.bg:T.dim,border:"none",borderRadius:8,padding:"5px 4px",fontFamily:"'Bebas Neue'",fontSize:11,letterSpacing:.5,cursor:"pointer",transition:"all .15s",display:"flex",flexDirection:"column",alignItems:"center",gap:2}}>
-      <span style={{fontSize:20,lineHeight:1}}>{icon}</span>
+  const navBtn=(key,label)=>(
+    <button key={key} onClick={()=>setTab(key)} style={{flex:1,background:"none",color:tab===key?T.text:T.dim,border:"none",borderRadius:0,padding:"6px 4px 8px",fontFamily:"'Bebas Neue'",fontSize:13,letterSpacing:1,cursor:"pointer",transition:"color .15s",display:"flex",flexDirection:"column",alignItems:"center",gap:4,borderTop:`2px solid ${tab===key?T.text:"transparent"}`}}>
       {label}
     </button>
   );
@@ -1079,7 +1110,7 @@ export default function App() {
         {tab==="plan"&&(
           <div>
             <div style={{fontWeight:700,fontSize:18,color:T.text,marginBottom:14}}>Planificateur</div>
-            <Planner plans={plans} setPlans={setPlans} exDB={exDB} allLogs={logs} bw={bw}/>
+            <Planner weekPlan={weekPlan} setWeekPlan={setWeekPlan} exDB={exDB} allLogs={logs} bw={bw}/>
           </div>
         )}
 
@@ -1190,7 +1221,7 @@ export default function App() {
 
       {/* BOTTOM NAV */}
       <div style={{position:"fixed",bottom:0,left:"50%",transform:"translateX(-50%)",width:"100%",maxWidth:600,background:T.card,borderTop:`1px solid ${T.border}`,display:"flex",zIndex:90,paddingTop:8,paddingLeft:8,paddingRight:8,paddingBottom:"calc(8px + env(safe-area-inset-bottom, 0px))"}}>
-        {[["seance","Séance","🏋️"],["plan","Plan","📋"],["logs","Logs","📝"],["stats","Stats","📊"],["exos","Exos","💪"]].map(([k,l,i])=>navBtn(k,l,i))}
+        {[["seance","Séance"],["plan","Plan"],["logs","Logs"],["stats","Stats"],["exos","Exos"]].map(([k,l])=>navBtn(k,l))}
       </div>
     </div>
   );
