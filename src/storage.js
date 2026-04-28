@@ -1,23 +1,10 @@
 const SUPABASE_URL = 'https://gwohnwolpabyenpdnega.supabase.co'
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imd3b2hud29scGFieWVucGRuZWdhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzcwMjc2MjcsImV4cCI6MjA5MjYwMzYyN30.CjQ_uao-vgBTqeUUBZ_bSWka2xDRa5jHXjglMOs4Oj0'
 const LOCAL_KEY = 'kilo-data'
-const USER_KEY = 'kilo-user-id'
 const LEGACY_DEVICE_KEY = 'kilo-device-id'
 
-export function getUserId() {
-  return localStorage.getItem(USER_KEY) || null
-}
-
-export function setUserId(id) {
-  const v = String(id || '').trim().toLowerCase().replace(/[^a-z0-9_-]/g, '-').slice(0, 40)
-  if (!v) { localStorage.removeItem(USER_KEY); return null }
-  localStorage.setItem(USER_KEY, v)
-  return v
-}
-
-export function getLegacyDeviceId() {
-  return localStorage.getItem(LEGACY_DEVICE_KEY) || null
-}
+// Single shared identifier — the app syncs everywhere automatically with no UI.
+const DEVICE_ID = 'kilo-shared'
 
 async function supabaseFetch(path, options = {}) {
   const { headers: callerHeaders, ...rest } = options
@@ -36,7 +23,6 @@ async function supabaseFetch(path, options = {}) {
     throw new Error(`Supabase error ${res.status}: ${err}`)
   }
   if (res.status === 204 || res.status === 404) return null
-  // DELETE with return=minimal returns empty body → don't try to parse
   const ct = res.headers.get('content-type') || ''
   if (!ct.includes('application/json')) return null
   const text = await res.text()
@@ -51,21 +37,10 @@ function readLocal() {
   } catch { return null }
 }
 
-// Try to recover data saved under the legacy random device_id (one-time migration)
-async function fetchLegacyData() {
-  const legacy = getLegacyDeviceId()
-  if (!legacy) return null
-  try {
-    const rows = await supabaseFetch(`kilo_data?device_id=eq.${encodeURIComponent(legacy)}&select=data&order=updated_at.desc&limit=1`)
-    if (rows && rows.length > 0) return rows[0].data
-  } catch (e) { /* ignore */ }
-  return null
-}
-
-// Merge two snapshots so that concurrent device edits aren't lost.
-// - logs: union by (date+exo); within a duplicate, the one with greater ts wins (else any)
-// - exDB: union by name (existing entry wins, since customizations rarely conflict)
-// - weekPlan, bw: take from the snapshot with greater _savedAt
+// Merge two snapshots so concurrent edits across devices aren't lost.
+// - logs: union by (date+exo); within a duplicate, the entry with greater ts wins
+// - exDB: union by name (newer-snapshot entry wins on conflict)
+// - weekPlan, bw: take from whichever snapshot has the greater _savedAt
 function mergeData(a, b) {
   if (!a) return b || null
   if (!b) return a
@@ -80,43 +55,45 @@ function mergeData(a, b) {
     const k = l.date + '|' + l.exo
     const cur = logsMap.get(k)
     if (!cur) { logsMap.set(k, l); return }
-    const lt = l.ts || 0, ct = cur.ts || 0
-    if (lt > ct) logsMap.set(k, l)
+    if ((l.ts || 0) > (cur.ts || 0)) logsMap.set(k, l)
   }
   ;(newer.logs || []).forEach(addLog)
   ;(older.logs || []).forEach(addLog)
-  const logs = Array.from(logsMap.values())
 
   const exMap = new Map()
   ;(newer.exDB || []).forEach(e => exMap.set(e.name, e))
   ;(older.exDB || []).forEach(e => { if (!exMap.has(e.name)) exMap.set(e.name, e) })
-  const exDB = exMap.size ? Array.from(exMap.values()) : (newer.exDB || older.exDB)
 
   return {
     ...newer,
-    logs,
-    exDB,
+    logs: Array.from(logsMap.values()),
+    exDB: exMap.size ? Array.from(exMap.values()) : (newer.exDB || older.exDB),
     weekPlan: newer.weekPlan || older.weekPlan,
     bw: newer.bw != null ? newer.bw : older.bw,
     _savedAt: Math.max(aAt, bAt),
   }
 }
 
-async function fetchRemote(userId) {
-  const rows = await supabaseFetch(`kilo_data?device_id=eq.${encodeURIComponent(userId)}&select=data&order=updated_at.desc&limit=1`)
+async function fetchRemote() {
+  const rows = await supabaseFetch(`kilo_data?device_id=eq.${encodeURIComponent(DEVICE_ID)}&select=data&order=updated_at.desc&limit=1`)
   return rows && rows.length > 0 ? rows[0].data : null
 }
 
-export async function loadData() {
-  const userId = getUserId()
-  const localData = readLocal()
-
-  // No user ID set: localStorage-only mode
-  if (!userId) return localData
-
+// One-time migration: pull data from a previous random per-device row if any.
+async function fetchLegacyData() {
+  const legacy = localStorage.getItem(LEGACY_DEVICE_KEY)
+  if (!legacy || legacy === DEVICE_ID) return null
   try {
-    let remote = await fetchRemote(userId)
-    // No remote data yet → check legacy random-device row for one-time migration
+    const rows = await supabaseFetch(`kilo_data?device_id=eq.${encodeURIComponent(legacy)}&select=data&order=updated_at.desc&limit=1`)
+    if (rows && rows.length > 0) return rows[0].data
+  } catch (e) { /* ignore */ }
+  return null
+}
+
+export async function loadData() {
+  const localData = readLocal()
+  try {
+    let remote = await fetchRemote()
     if (!remote) {
       const legacy = await fetchLegacyData()
       if (legacy) remote = legacy
@@ -125,11 +102,12 @@ export async function loadData() {
     if (merged) {
       const stamped = { ...merged, _savedAt: merged._savedAt || Date.now() }
       try { localStorage.setItem(LOCAL_KEY, JSON.stringify(stamped)) } catch {}
-      // Push merged snapshot back so every device converges to the union
+      // If our merge produced something different from what's on the server, push it back so
+      // every other device converges to the union on their next pull.
       const localCount = (localData?.logs || []).length
       const remoteCount = (remote?.logs || []).length
       const mergedCount = (merged.logs || []).length
-      if (mergedCount > localCount || mergedCount > remoteCount || !remote) {
+      if (mergedCount > remoteCount || mergedCount > localCount || !remote) {
         saveData(stamped).catch(() => {})
       }
       return stamped
@@ -141,17 +119,14 @@ export async function loadData() {
 }
 
 export async function saveData(data) {
-  const userId = getUserId()
   const payload = { ...data, _savedAt: data._savedAt ?? Date.now() }
   try { localStorage.setItem(LOCAL_KEY, JSON.stringify(payload)) } catch (e) {}
-  if (!userId) return false
   try {
-    // Ensure exactly one row per user_id by deleting any existing rows first
-    await supabaseFetch(`kilo_data?device_id=eq.${encodeURIComponent(userId)}`, { method: 'DELETE' })
-    await supabaseFetch('kilo_data', {
+    // Proper UPSERT — relies on UNIQUE/PK on device_id (PostgREST resolution=merge-duplicates)
+    await supabaseFetch('kilo_data?on_conflict=device_id', {
       method: 'POST',
-      headers: { 'Prefer': 'return=minimal' },
-      body: JSON.stringify({ device_id: userId, data: payload, updated_at: new Date().toISOString() }),
+      headers: { 'Prefer': 'resolution=merge-duplicates,return=minimal' },
+      body: JSON.stringify({ device_id: DEVICE_ID, data: payload, updated_at: new Date().toISOString() }),
     })
     return true
   } catch (e) {

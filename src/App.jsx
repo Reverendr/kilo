@@ -1,6 +1,5 @@
 import { useState, useRef, useCallback, useMemo, useEffect } from "react";
-import { loadData, saveData, exportJSON, importJSON, getUserId, setUserId } from "./storage.js";
-const wait = ms => new Promise(r=>setTimeout(r,ms));
+import { loadData, saveData, exportJSON, importJSON } from "./storage.js";
 
 /* ─── FONTS ──────────────────────────────────────────────────────────────── */
 const FONTS = `@import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=IBM+Plex+Mono:wght@400;700&family=Inter:wght@400;500;600;700;800;900&display=swap');`;
@@ -347,48 +346,6 @@ function ConfirmModal({title="Confirmer",message,confirmLabel="Supprimer",cancel
           <button onClick={onClose} style={ghostBtn({padding:"14px",fontSize:14})}>{cancelLabel}</button>
           <button onClick={()=>{onConfirm();onClose();}} style={btn(danger?T.red:T.green,"#fff",{padding:"14px",fontSize:14})}>{confirmLabel}</button>
         </div>
-      </div>
-    </div>
-  );
-}
-
-/* ─── SYNC MODAL — identifiant partagé entre appareils ──────────────────── */
-function SyncModal({currentId, firstRun, onSave, onPull, onClose}) {
-  const [v,setV]=useState(currentId||"");
-  const [pulling,setPulling]=useState(false);
-  const [pullMsg,setPullMsg]=useState(null);
-  const norm = String(v||'').trim().toLowerCase().replace(/[^a-z0-9_-]/g,'-').slice(0,40);
-  const isCurrent = currentId && norm === currentId;
-  const doPull=async()=>{setPulling(true);setPullMsg(null);try{await onPull();setPullMsg({k:"ok",t:"✓ Synchronisé"});}catch(e){setPullMsg({k:"err",t:"⚠ Erreur"});}setPulling(false);};
-  return(
-    <div onClick={firstRun?undefined:onClose} style={{position:"fixed",inset:0,background:"#000d",zIndex:1100,display:"flex",alignItems:"center",justifyContent:"center",padding:20,backdropFilter:"blur(6px)"}}>
-      <div onClick={e=>e.stopPropagation()} style={{background:T.card,borderRadius:18,padding:"22px 22px 18px",width:"100%",maxWidth:420,border:`1px solid ${T.border}`,boxShadow:T.shadow}}>
-        <div style={{fontFamily:"'Bebas Neue'",fontSize:13,letterSpacing:3,color:T.red,marginBottom:6}}>{firstRun?"BIENVENUE":"SYNCHRONISATION"}</div>
-        <div style={{fontWeight:900,fontSize:20,color:T.text,marginBottom:8,letterSpacing:-.3}}>Identifiant de sync</div>
-        <div style={{fontSize:13,color:T.dim,lineHeight:1.5,marginBottom:16}}>
-          Choisis un identifiant <strong style={{color:T.text}}>unique et secret</strong> (ex: ton prénom + un chiffre). Tape-le ensuite à l'identique sur tes autres appareils — mobile, desktop — pour partager les mêmes données.
-        </div>
-        <label style={T.lbl}>IDENTIFIANT</label>
-        <input value={v} onChange={e=>setV(e.target.value)} placeholder="ex: romain-42" autoFocus
-          style={{...T.inp,fontFamily:"'IBM Plex Mono'",fontSize:15,marginBottom:6}}/>
-        <div style={{fontSize:11,color:T.faint,fontFamily:"'IBM Plex Mono'",marginBottom:16,minHeight:14}}>
-          {norm?<>→ <span style={{color:T.green}}>{norm}</span></>:""}
-        </div>
-        <div style={{display:"grid",gridTemplateColumns:firstRun?"1fr":"1fr 1fr",gap:8}}>
-          {!firstRun&&<button onClick={onClose} style={ghostBtn({padding:"14px",fontSize:14})}>Fermer</button>}
-          <button onClick={()=>{if(norm){onSave(norm);}}} disabled={!norm||isCurrent} style={btn(T.green,"#fff",{padding:"14px",fontSize:14,opacity:(norm&&!isCurrent)?1:.4,boxShadow:(norm&&!isCurrent)?`0 4px 12px ${T.green}55`:"none"})}>{firstRun?"✓ ACTIVER":(isCurrent?"✓ Actif":"✓ Enregistrer")}</button>
-        </div>
-        {!firstRun&&currentId&&(
-          <>
-          <div style={{height:1,background:T.border,margin:"16px 0 14px"}}/>
-          <div style={{fontSize:12,color:T.dim,marginBottom:10,lineHeight:1.5}}>Forcer une récupération des données depuis le cloud (utile si un autre appareil a ajouté des logs récents).</div>
-          <button onClick={doPull} disabled={pulling} style={ghostBtn({padding:"12px",fontSize:13,width:"100%",opacity:pulling?.6:1})}>
-            {pulling?"Synchronisation…":"↻ SYNC MAINTENANT"}
-          </button>
-          {pullMsg&&<div style={{fontSize:11,color:pullMsg.k==="ok"?T.green:T.red,fontFamily:"'IBM Plex Mono'",fontWeight:700,marginTop:8,textAlign:"center",letterSpacing:.5}}>{pullMsg.t}</div>}
-          </>
-        )}
-        {firstRun&&<button onClick={onClose} style={{background:"none",border:"none",color:T.faint,fontSize:12,cursor:"pointer",marginTop:10,width:"100%",padding:6,fontFamily:"'Inter',sans-serif"}}>Plus tard (mode local seulement)</button>}
       </div>
     </div>
   );
@@ -1353,12 +1310,11 @@ export default function App() {
   const [bwInput,setBwInput]=useState("80");
   const [loaded,setLoaded]=useState(false);
   const [saveStatus,setSaveStatus]=useState(null);
-  const [userId,setUserIdState]=useState(()=>getUserId());
-  const [showSync,setShowSync]=useState(false);
-  const [firstRunSync,setFirstRunSync]=useState(false);
   const saveTimer=useRef(null);
+  const lastPullAt=useRef(0);
 
   const reloadFromStorage=useCallback(async()=>{
+    lastPullAt.current=Date.now();
     try {
       const data = await loadData();
       if(data) {
@@ -1380,9 +1336,24 @@ export default function App() {
     (async()=>{
       await reloadFromStorage();
       setLoaded(true);
-      if(!getUserId()) { setFirstRunSync(true); setShowSync(true); }
     })();
   },[reloadFromStorage]);
+
+  // ── AUTO-PULL when the app regains focus or visibility ─────────────────
+  useEffect(()=>{
+    if(!loaded) return;
+    const onActive=()=>{
+      if(document.visibilityState!=="visible") return;
+      if(Date.now()-lastPullAt.current<5000) return;
+      reloadFromStorage();
+    };
+    document.addEventListener("visibilitychange",onActive);
+    window.addEventListener("focus",onActive);
+    return ()=>{
+      document.removeEventListener("visibilitychange",onActive);
+      window.removeEventListener("focus",onActive);
+    };
+  },[loaded,reloadFromStorage]);
 
   // ── SAVE whenever data changes (debounced 800ms) ─────────────────────────
   useEffect(()=>{
@@ -1435,7 +1406,6 @@ export default function App() {
       {logEdit&&<LogEditor log={logEdit} exDB={exDB} onSave={updateLog} onDelete={removeLog} onClose={()=>setLogEdit(null)} bw={bw}/>}
       {logAdd&&<LogAddModal defaultDate={logAdd.defaultDate} exDB={exDB} onSave={addLog} onClose={()=>setLogAdd(null)} bw={bw}/>}
       {confirm&&<ConfirmModal title={confirm.title} message={confirm.message} confirmLabel={confirm.confirmLabel} onConfirm={confirm.onConfirm} onClose={()=>setConfirm(null)}/>}
-      {showSync&&<SyncModal currentId={userId} firstRun={firstRunSync} onClose={()=>{setShowSync(false);setFirstRunSync(false);}} onPull={async()=>{await reloadFromStorage();}} onSave={async(id)=>{const v=setUserId(id);setUserIdState(v);setFirstRunSync(false);setSaveStatus("saving");try{await saveData({logs,weekPlan,exDB,bw,_savedAt:Date.now()});await wait(150);await reloadFromStorage();setSaveStatus("saved");setTimeout(()=>setSaveStatus(null),2000);}catch(e){setSaveStatus("error");}setShowSync(false);}}/>}
 
       {/* HEADER */}
       <div style={{padding:"14px 16px 12px calc(16px + env(safe-area-inset-left, 0px))",paddingRight:"calc(16px + env(safe-area-inset-right, 0px))",display:"flex",justifyContent:"space-between",alignItems:"center",position:"sticky",top:0,background:T.bg+"ee",backdropFilter:"blur(10px)",zIndex:90,borderBottom:`1px solid ${T.border}`}}>
@@ -1447,10 +1417,7 @@ export default function App() {
           <div style={{fontSize:10,color:T.faint,fontFamily:"'IBM Plex Mono'",marginTop:3,letterSpacing:.5,fontWeight:600}}>{todayLabel().toUpperCase()}</div>
         </div>
         <div style={{display:"flex",gap:6,alignItems:"center"}}>
-          <button onClick={()=>{setFirstRunSync(false);setShowSync(true);}} title={userId?`Sync : ${userId}`:"Sync OFF"} style={{background:userId?T.green+"22":T.ghost,color:userId?T.green:T.faint,border:`1px solid ${userId?T.green+"55":T.border}`,borderRadius:10,padding:"10px 11px",fontSize:13,cursor:"pointer",WebkitTapHighlightColor:"transparent",display:"flex",alignItems:"center",gap:5,fontFamily:"'IBM Plex Mono'",fontWeight:800,letterSpacing:.5}}>
-            <span style={{fontSize:10}}>{userId?"●":"○"}</span>
-            <span style={{maxWidth:80,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{userId||"SYNC"}</span>
-          </button>
+          <button onClick={()=>{if(Date.now()-lastPullAt.current<2000)return;reloadFromStorage();}} title="Synchroniser maintenant" style={{background:T.ghost,color:saveStatus==="saving"?T.amber:saveStatus==="error"?T.red:T.green,border:`1px solid ${T.border}`,borderRadius:10,padding:"10px 11px",fontSize:14,cursor:"pointer",WebkitTapHighlightColor:"transparent"}}>↻</button>
           {showBwEdit?(
             <div style={{display:"flex",gap:5,alignItems:"center"}}>
               <input type="number" value={bwInput} onChange={e=>setBwInput(e.target.value)} style={{...T.inp,width:70,padding:"8px 10px",fontSize:13}} autoFocus/>
