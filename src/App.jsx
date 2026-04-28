@@ -131,6 +131,96 @@ const todayWeekday = () => { const w=new Date().toLocaleDateString("fr-FR",{week
 const todayLabel = () => { const d=new Date(); const day=d.toLocaleDateString("fr-FR",{weekday:"long"}); return day[0].toUpperCase()+day.slice(1)+" "+d.toLocaleDateString("fr-FR",{day:"numeric",month:"long",year:"numeric"}); };
 const dowOf = s => { const [d,m,y]=s.split("/").map(Number); const w=new Date(y,m-1,d).toLocaleDateString("fr-FR",{weekday:"long"}); return w[0].toUpperCase()+w.slice(1); };
 
+// ISO week key like "2026-W18" — used to mark plan entries as validated for the current week
+const isoWeekKey = (d=new Date()) => {
+  const dt = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
+  dt.setUTCDate(dt.getUTCDate() + 4 - (dt.getUTCDay() || 7));
+  const year = dt.getUTCFullYear();
+  const yearStart = new Date(Date.UTC(year, 0, 1));
+  const weekNo = Math.ceil((((dt - yearStart) / 86400000) + 1) / 7);
+  return `${year}-W${String(weekNo).padStart(2,'0')}`;
+};
+
+// Best ever single set for an exercise — max(poids × reps). Returns {poids,reps} or null.
+const bestPerf = (logs, exoName) => {
+  let best = null;
+  for (const l of logs) {
+    if (l.exo !== exoName) continue;
+    for (const s of l.series) {
+      const p = pf(s.poids), r = pf(s.reps);
+      const score = p*r;
+      if (!best || score > best.score) best = {poids:p, reps:r, score};
+    }
+  }
+  return best;
+};
+
+// Detect a sensible weight increment for an exo by inspecting its history.
+// Falls back to equipment heuristics when we don't have enough data.
+const stepFor = (exoName, exDB, allLogs) => {
+  const ex = exDB.find(e=>e.name===exoName);
+  if (!ex) return 2.5;
+  if (ex.useBodyweight) return 0;
+  const weights = [...new Set(
+    allLogs.filter(l=>l.exo===exoName).flatMap(l=>l.series.map(s=>pf(s.poids))).filter(w=>w>0)
+  )].sort((a,b)=>a-b);
+  if (weights.length >= 3) {
+    const diffs = [];
+    for (let i=1;i<weights.length;i++) {
+      const d = weights[i] - weights[i-1];
+      if (d > 0.01) diffs.push(d);
+    }
+    if (diffs.length) {
+      const minDiff = Math.min(...diffs);
+      // Snap to common gym increments
+      if (minDiff < 1.4) return 1;
+      if (minDiff < 2.0) return 1.5;
+      if (minDiff < 2.4) return 2;
+      if (minDiff < 3.0) return 2.25;
+      if (minDiff < 4.0) return 2.5;
+      if (minDiff < 5.5) return 5;
+      if (minDiff < 7.5) return 6.5;
+      return Math.round(minDiff*2)/2;
+    }
+  }
+  // Heuristic fallback
+  if (ex.barAdd > 0) return 2.5;
+  const n = ex.name.toLowerCase();
+  if (n.includes("haltère")) return 2;
+  if (n.includes("poulie")) return 2.25;
+  if (n.includes("smith")) return 2.5;
+  if (ex.mult === 2) return 1;
+  return 5;
+};
+
+// Suggest the next objective for an exo based on the last 1-2 sessions vs the previously planned target.
+// Returns {objPoids, objReps, objSeries}.
+const suggestObjective = (exoName, exDB, allLogs, prevPlan) => {
+  const ex = exDB.find(e=>e.name===exoName);
+  const exLogs = allLogs.filter(l=>l.exo===exoName).sort((a,b)=>frSort(b.date,a.date));
+  if (!ex || exLogs.length === 0) return { objPoids: 0, objReps: 8, objSeries: 3 };
+  const last = exLogs[0];
+  const prev = exLogs[1] || null;
+  const prevReps = pf(prevPlan?.objReps) || Math.round(last.series.reduce((s,x)=>s+pf(x.reps),0)/Math.max(last.series.length,1)) || 8;
+  const targetSeries = pf(prevPlan?.objSeries) || Math.max(last.series.length, 3);
+  const lastWeight = last.series.reduce((mx,s)=>{const w=pf(s.poids);return w>mx?w:mx;},0);
+  const hitAll = sess => sess.series.every(s => pf(s.reps) >= prevReps);
+  const hitLast = hitAll(last);
+  const hitPrev = prev ? hitAll(prev) : false;
+
+  if (ex.useBodyweight) {
+    return { objPoids: 0, objReps: hitLast ? prevReps + 1 : prevReps, objSeries: targetSeries };
+  }
+  let weight = lastWeight;
+  if (hitLast && hitPrev) weight = lastWeight + stepFor(exoName, exDB, allLogs);
+  // else: consolidate or retry — same weight
+  return {
+    objPoids: Math.round(weight * 10) / 10,
+    objReps: prevReps,
+    objSeries: targetSeries,
+  };
+};
+
 const parseS = raw => raw ? raw.split(" - ").map(s=>{const p=s.split("x");return{poids:pf(p[0]),reps:pf(p[1])};}) : [];
 const mkLog = (date, exo, raw, note="") => {
   const ex=INIT_EX.find(e=>e.name===exo);
@@ -393,7 +483,8 @@ function ExCard({plan, exDB, onLog, todayLogs, allLogs, bw}) {
   const exLogs = allLogs.filter(l=>l.exo===plan.exo).sort((a,b)=>frSort(b.date,a.date));
   const lastLog = exLogs[0];
   const lastPerf = lastLog ? lastLog.series.map(s=>`${s.poids}×${s.reps}`).join("  ") : "—";
-  const prPoids = exLogs.reduce((best,l)=>{l.series.forEach(s=>{const rw=realW(s.poids,ex,bw);if(rw>best)best=rw;});return best;},0);
+  const best = bestPerf(allLogs, plan.exo);
+  const bestStr = best ? `${best.poids}kg × ${best.reps}` : "—";
   const prVol = exLogs.reduce((best,l)=>l.volume>best?l.volume:best,0);
   const objVol = realW(plan.objPoids,ex,bw)*plan.objReps*plan.objSeries;
 
@@ -450,7 +541,7 @@ function ExCard({plan, exDB, onLog, todayLogs, allLogs, bw}) {
             {[
               {l:"DERNIÈRE",v:lastPerf,c:T.text},
               {l:"OBJ. VOL",v:objVol>0?`${objVol.toFixed(0)} kg`:"—",c:col},
-              {l:"PR POIDS",v:prPoids>0?`${prPoids.toFixed(1)} kg`:"—",c:T.green},
+              {l:"MEILLEURE PERF",v:bestStr,c:T.green},
               {l:"PR VOLUME",v:prVol>0?`${prVol.toFixed(0)} kg`:"—",c:T.amber},
             ].map(({l,v,c})=>(
               <div key={l} style={{background:T.card2,borderRadius:10,padding:"8px 10px",border:`1px solid ${T.border}`}}>
@@ -534,21 +625,25 @@ function Planner({weekPlan, setWeekPlan, exDB, allLogs, bw}) {
     setSel(remaining[0]||"");
   };
 
+  const currentWeek = useMemo(()=>isoWeekKey(),[]);
+
   // Stats per exercise
   const exStats = useMemo(()=>{
     const m={};
     exDB.forEach(ex=>{
       const lg=allLogs.filter(l=>l.exo===ex.name).sort((a,b)=>frSort(b.date,a.date));
+      const best = bestPerf(allLogs, ex.name);
       m[ex.name]={
         lastPerf:lg[0]?lg[0].series.map(s=>`${s.poids}×${s.reps}`).join(" "):"—",
         lastDate:lg[0]?.date||null,
-        prPoids:lg.reduce((b,l)=>{l.series.forEach(s=>{const rw=realW(s.poids,ex,bw);if(rw>b)b=rw;});return b;},0),
+        best,
+        bestStr: best ? `${best.poids}kg × ${best.reps}` : "—",
         prVol:lg.reduce((b,l)=>l.volume>b?l.volume:b,0),
         nSessions:lg.length,
       };
     });
     return m;
-  },[allLogs,exDB,bw]);
+  },[allLogs,exDB]);
 
   const muscles=["Tous",...MUSCLE_GROUPS.filter(m=>exDB.some(e=>e.muscle===m))];
   const filteredEx=exDB.filter(e=>{
@@ -559,15 +654,20 @@ function Planner({weekPlan, setWeekPlan, exDB, allLogs, bw}) {
 
   const confirmAdd=()=>{
     if(!pickedEx)return;
-    set(sel,[...currPlan,{exo:pickedEx.name,objPoids:pf(form.objPoids),objReps:parseInt(form.objReps)||8,objSeries:parseInt(form.objSeries)||3}]);
+    set(sel,[...currPlan,{exo:pickedEx.name,objPoids:pf(form.objPoids),objReps:parseInt(form.objReps)||8,objSeries:parseInt(form.objSeries)||3,validatedFor:currentWeek}]);
     setStep("list");setPickedEx(null);setForm({objPoids:"",objReps:"8",objSeries:"3"});setSearch("");
   };
+
+  const regenDay=(day)=>{
+    setWeekPlan(prev=>{const cur=prev[day]||[];return {...prev,[day]:cur.map(p=>({...p,validatedFor:null}))};});
+  };
+  const askRegen=(day)=>setConfirm({title:"Régénérer le plan ?",message:`Les objectifs (poids/reps/séries) de ${day} repasseront en "suggérés" pour la semaine. Tu pourras les revalider un par un.`,confirmLabel:"Régénérer",onConfirm:()=>regenDay(day)});
 
   const st=pickedEx?exStats[pickedEx.name]:null;
   const objVol=pickedEx?realW(pf(form.objPoids),pickedEx,bw)*pf(form.objReps)*pf(form.objSeries):0;
 
-  const askRemoveDay=(day)=>setConfirm({title:"Supprimer ce jour ?",message:`Le plan du ${day} et ses ${(weekPlan[day]||[]).length} exercices seront supprimés.`,onConfirm:()=>removeDay(day)});
-  const askRemoveExo=(i,name)=>setConfirm({title:"Retirer l'exercice ?",message:`"${name}" sera retiré du plan ${sel}.`,onConfirm:()=>set(sel,currPlan.filter((_,j)=>j!==i))});
+  const askRemoveDay=(day)=>setConfirm({title:"Supprimer ce jour ?",message:`Le plan du ${day} et ses ${(weekPlan[day]||[]).length} exercices seront supprimés.`,confirmLabel:"Supprimer",onConfirm:()=>removeDay(day)});
+  const askRemoveExo=(i,name)=>setConfirm({title:"Retirer l'exercice ?",message:`"${name}" sera retiré du plan ${sel}.`,confirmLabel:"Retirer",onConfirm:()=>set(sel,currPlan.filter((_,j)=>j!==i))});
 
   // Step: choose exercise
   if(step==="addex") return(
@@ -585,14 +685,14 @@ function Planner({weekPlan, setWeekPlan, exDB, allLogs, bw}) {
           const s=exStats[ex.name];
           const tcc=tc(ex.type);
           return(
-            <button key={ex.name} onClick={()=>{setPickedEx(ex);setStep("confirm");}} style={{background:T.card,border:`1px solid ${T.border}`,borderRadius:12,padding:"12px 14px",cursor:"pointer",textAlign:"left",display:"flex",justifyContent:"space-between",alignItems:"center",gap:10,position:"relative",overflow:"hidden",WebkitTapHighlightColor:"transparent",fontFamily:"'Inter',sans-serif"}}>
+            <button key={ex.name} onClick={()=>{setPickedEx(ex);const sug=suggestObjective(ex.name,exDB,allLogs,null);setForm({objPoids:sug.objPoids?String(sug.objPoids):"",objReps:String(sug.objReps),objSeries:String(sug.objSeries)});setStep("confirm");}} style={{background:T.card,border:`1px solid ${T.border}`,borderRadius:12,padding:"12px 14px",cursor:"pointer",textAlign:"left",display:"flex",justifyContent:"space-between",alignItems:"center",gap:10,position:"relative",overflow:"hidden",WebkitTapHighlightColor:"transparent",fontFamily:"'Inter',sans-serif"}}>
               <div style={{position:"absolute",left:0,top:0,bottom:0,width:3,background:tcc.grad}}/>
               <div style={{flex:1,minWidth:0,paddingLeft:6}}>
                 <div style={{fontWeight:800,fontSize:14,color:T.text,letterSpacing:-.2}}>{ex.name}</div>
                 <div style={{fontSize:11,color:T.dim,marginTop:3,fontWeight:500}}>{ex.muscle} {ex.mult>1?`· ×${ex.mult} bras`:""}{ex.barAdd>0?` · +${ex.barAdd}kg`:""}</div>
               </div>
               <div style={{textAlign:"right",fontSize:11,fontFamily:"'IBM Plex Mono'",color:T.dim,whiteSpace:"nowrap"}}>
-                {s.prPoids>0&&<div style={{color:T.green,fontWeight:800}}>PR {s.prPoids.toFixed(1)}kg</div>}
+                {s.bestStr!=="—"&&<div style={{color:T.green,fontWeight:800}}>{s.bestStr}</div>}
                 {s.nSessions>0&&<div style={{fontWeight:600,marginTop:2}}>{s.nSessions} séances</div>}
               </div>
             </button>
@@ -612,14 +712,16 @@ function Planner({weekPlan, setWeekPlan, exDB, allLogs, bw}) {
         <span style={{fontWeight:800,fontSize:18,color:T.text,letterSpacing:-.3,minWidth:0,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{pickedEx.name}</span>
       </div>
       {/* Historical stats */}
-      <div style={{background:T.card,borderRadius:14,padding:"14px 16px",border:`1px solid ${T.border}`,position:"relative",overflow:"hidden"}}>
-        <div style={{position:"absolute",left:0,top:0,right:0,height:3,background:tcc.grad}}/>
-        <div style={{fontFamily:"'Bebas Neue'",fontSize:14,letterSpacing:3,color:T.dim,marginBottom:12,marginTop:4}}>HISTORIQUE</div>
+      <div style={{background:T.card,borderRadius:14,padding:"16px 16px 14px",border:`1px solid ${T.border}`,position:"relative",overflow:"hidden"}}>
+        <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:12}}>
+          <div style={{width:6,height:18,background:tcc.grad,borderRadius:3}}/>
+          <div style={{fontFamily:"'Bebas Neue'",fontSize:14,letterSpacing:3,color:T.dim}}>HISTORIQUE</div>
+        </div>
         <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
           {[
             {l:"DERNIÈRE PERF",v:st?.lastPerf||"—",c:T.text},
             {l:"DERNIÈRE DATE",v:st?.lastDate||"—",c:T.dim},
-            {l:"PR POIDS",v:st?.prPoids>0?`${st.prPoids.toFixed(1)} kg`:"—",c:T.green},
+            {l:"MEILLEURE PERF",v:st?.bestStr||"—",c:T.green},
             {l:"PR VOLUME",v:st?.prVol>0?`${st.prVol.toFixed(0)} kg`:"—",c:T.amber},
           ].map(({l,v,c})=>(
             <div key={l} style={{background:T.card2,borderRadius:10,padding:"9px 11px",border:`1px solid ${T.border}`}}>
@@ -638,7 +740,10 @@ function Planner({weekPlan, setWeekPlan, exDB, allLogs, bw}) {
       </div>
       {/* Set objective */}
       <div style={{background:T.card,borderRadius:14,padding:"14px 16px",border:`1px solid ${T.border}`}}>
-        <div style={{fontFamily:"'Bebas Neue'",fontSize:14,letterSpacing:3,color:T.dim,marginBottom:12}}>OBJECTIF DU JOUR</div>
+        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:8,marginBottom:12,flexWrap:"wrap"}}>
+          <div style={{fontFamily:"'Bebas Neue'",fontSize:14,letterSpacing:3,color:T.dim}}>OBJECTIF DE LA SEMAINE</div>
+          <span style={{fontSize:9,background:T.amber+"22",color:T.amber,borderRadius:5,padding:"3px 7px",fontFamily:"'IBM Plex Mono'",fontWeight:800,letterSpacing:.5}}>💡 PRÉ-REMPLI</span>
+        </div>
         <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:10,marginBottom:14}}>
           {[{k:"objPoids",l:"POIDS"},{k:"objReps",l:"REPS"},{k:"objSeries",l:"SÉRIES"}].map(({k,l})=>(
             <div key={k}>
@@ -656,7 +761,7 @@ function Planner({weekPlan, setWeekPlan, exDB, allLogs, bw}) {
   // Main list — vertical cards (no horizontal scroll)
   return(
     <div>
-      {confirm&&<ConfirmModal title={confirm.title} message={confirm.message} onConfirm={confirm.onConfirm} onClose={()=>setConfirm(null)}/>}
+      {confirm&&<ConfirmModal title={confirm.title} message={confirm.message} confirmLabel={confirm.confirmLabel} onConfirm={confirm.onConfirm} onClose={()=>setConfirm(null)}/>}
       {/* Day bar */}
       <div style={{display:"flex",gap:6,marginBottom:14,flexWrap:"wrap",alignItems:"center"}}>
         {days.map(d=>(
@@ -685,12 +790,13 @@ function Planner({weekPlan, setWeekPlan, exDB, allLogs, bw}) {
         </div>
       ):(
       <>
-      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14,gap:8}}>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14,gap:8,flexWrap:"wrap"}}>
         <div style={{minWidth:0}}>
           <div style={{fontFamily:"'Bebas Neue'",fontSize:24,color:T.text,letterSpacing:1,lineHeight:1}}>{sel.toUpperCase()}</div>
-          <div style={{color:T.dim,fontSize:12,fontFamily:"'IBM Plex Mono'",marginTop:2,fontWeight:600}}>{currPlan.length} EXERCICE{currPlan.length>1?"S":""}</div>
+          <div style={{color:T.dim,fontSize:12,fontFamily:"'IBM Plex Mono'",marginTop:2,fontWeight:600}}>{currPlan.length} EXERCICE{currPlan.length>1?"S":""} · {currPlan.filter(p=>p.validatedFor===currentWeek).length} VALIDÉS</div>
         </div>
-        <div style={{display:"flex",gap:6}}>
+        <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
+          <button onClick={()=>askRegen(sel)} title="Régénérer les objectifs" style={ghostBtn({padding:"11px 12px",fontSize:14,color:T.amber,borderColor:T.amber+"55"})}>↻</button>
           <button onClick={()=>setStep("addex")} style={btn(T.red,"#fff",{padding:"11px 16px",fontSize:13,boxShadow:`0 4px 12px ${T.red}44`})}>+ EXERCICE</button>
           <button onClick={()=>askRemoveDay(sel)} style={ghostBtn({padding:"11px 12px",fontSize:16,color:T.faint})}>🗑</button>
         </div>
@@ -704,45 +810,60 @@ function Planner({weekPlan, setWeekPlan, exDB, allLogs, bw}) {
             const ex=exDB.find(e=>e.name===p.exo);
             const tcc=tc(ex?.type||"Push");
             const c=tcc.bg;
-            const s=exStats[p.exo]||{lastPerf:"—",prPoids:0,prVol:0};
-            const ov=realW(p.objPoids,ex,bw)*p.objReps*p.objSeries;
+            const s=exStats[p.exo]||{lastPerf:"—",bestStr:"—"};
+            const validated = p.validatedFor === currentWeek;
+            const sug = !validated ? suggestObjective(p.exo, exDB, allLogs, p) : null;
+            const dispP = validated ? p.objPoids : sug.objPoids;
+            const dispR = validated ? p.objReps  : sug.objReps;
+            const dispS = validated ? p.objSeries : sug.objSeries;
+            const ov=realW(dispP,ex,bw)*dispR*dispS;
             if(editIdx===i) return(
               <div key={i} style={{background:T.cardHi,borderRadius:14,padding:14,border:`1px solid ${T.border}`,position:"relative",overflow:"hidden"}}>
                 <div style={{position:"absolute",left:0,top:0,bottom:0,width:3,background:tcc.grad}}/>
-                <div style={{fontWeight:800,fontSize:14,color:T.text,marginBottom:10,paddingLeft:6}}>{p.exo}</div>
+                <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10,paddingLeft:6,gap:8}}>
+                  <div style={{fontWeight:800,fontSize:14,color:T.text,minWidth:0,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{p.exo}</div>
+                  {!validated&&<span style={{fontSize:9,background:T.amber+"22",color:T.amber,borderRadius:5,padding:"3px 7px",fontFamily:"'IBM Plex Mono'",fontWeight:800,letterSpacing:.5,whiteSpace:"nowrap"}}>💡 SUGGÉRÉ</span>}
+                </div>
                 <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:8,marginBottom:10}}>
                   {[["objPoids","KG"],["objReps","REPS"],["objSeries","SÉRIES"]].map(([k,l])=>(
                     <div key={k}><label style={T.lbl}>{l}</label><input type="number" step={k==="objPoids"?"0.5":"1"} value={editForm[k]} onChange={e=>setEditForm(f=>({...f,[k]:e.target.value}))} style={{...T.inp,fontSize:16,fontWeight:800,textAlign:"center",padding:"12px 4px"}}/></div>
                   ))}
                 </div>
+                {s.lastPerf!=="—"&&<div style={{fontSize:11,color:T.dim,fontFamily:"'IBM Plex Mono'",fontWeight:600,marginBottom:10,paddingLeft:2}}><span style={{color:T.faint,letterSpacing:.5}}>DERNIÈRE</span> {s.lastPerf}{s.bestStr!=="—"?<><span style={{color:T.faint,marginLeft:10,letterSpacing:.5}}>BEST</span> <span style={{color:T.green,fontWeight:800}}>{s.bestStr}</span></>:""}</div>}
                 <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:6}}>
-                  <button onClick={()=>{set(sel,currPlan.map((px,j)=>j===i?{...px,objPoids:pf(editForm.objPoids),objReps:parseInt(editForm.objReps)||8,objSeries:parseInt(editForm.objSeries)||3}:px));setEditIdx(null);}} style={btn(T.green,"#fff",{padding:"12px",fontSize:14})}>✓ ENREGISTRER</button>
+                  <button onClick={()=>{set(sel,currPlan.map((px,j)=>j===i?{...px,objPoids:pf(editForm.objPoids),objReps:parseInt(editForm.objReps)||8,objSeries:parseInt(editForm.objSeries)||3,validatedFor:currentWeek}:px));setEditIdx(null);}} style={btn(T.green,"#fff",{padding:"12px",fontSize:14})}>✓ VALIDER</button>
                   <button onClick={()=>setEditIdx(null)} style={ghostBtn({padding:"12px",fontSize:14})}>Annuler</button>
                 </div>
               </div>
             );
             return(
-              <div key={i} style={{background:T.card,borderRadius:14,padding:"12px 14px",border:`1px solid ${T.border}`,position:"relative",overflow:"hidden"}}>
+              <div key={i} style={{background:T.card,borderRadius:14,padding:"12px 14px",border:`1px solid ${validated?T.border:T.amber+"33"}`,position:"relative",overflow:"hidden"}}>
                 <div style={{position:"absolute",left:0,top:0,bottom:0,width:3,background:tcc.grad}}/>
                 <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:8,paddingLeft:6}}>
                   <div style={{flex:1,minWidth:0}}>
-                    <div style={{fontWeight:800,fontSize:14,color:T.text,letterSpacing:-.2}}>{p.exo}</div>
+                    <div style={{display:"flex",alignItems:"center",gap:6,flexWrap:"wrap"}}>
+                      <span style={{fontWeight:800,fontSize:14,color:T.text,letterSpacing:-.2}}>{p.exo}</span>
+                      {validated
+                        ? <span style={{fontSize:9,background:T.green+"22",color:T.green,borderRadius:5,padding:"2px 6px",fontFamily:"'IBM Plex Mono'",fontWeight:800,letterSpacing:.5}}>✓</span>
+                        : <span style={{fontSize:9,background:T.amber+"22",color:T.amber,borderRadius:5,padding:"2px 6px",fontFamily:"'IBM Plex Mono'",fontWeight:800,letterSpacing:.5}}>💡 SUGGÉRÉ</span>
+                      }
+                    </div>
                     <div style={{fontSize:11,color:T.dim,marginTop:3,fontFamily:"'IBM Plex Mono'",fontWeight:600}}>{ex?.muscle?.toUpperCase()}</div>
                   </div>
                   <div style={{display:"flex",gap:2}}>
-                    <button onClick={()=>{setEditIdx(i);setEditForm({...p});}} style={{background:T.ghost,border:"none",cursor:"pointer",color:T.dim,fontSize:14,padding:"7px 10px",borderRadius:8,WebkitTapHighlightColor:"transparent"}}>✏️</button>
+                    <button onClick={()=>{setEditIdx(i);setEditForm({objPoids:String(dispP||""),objReps:String(dispR||""),objSeries:String(dispS||"")});}} style={{background:T.ghost,border:"none",cursor:"pointer",color:T.dim,fontSize:14,padding:"7px 10px",borderRadius:8,WebkitTapHighlightColor:"transparent"}}>✏️</button>
                     <button onClick={()=>askRemoveExo(i,p.exo)} style={{background:T.ghost,border:"none",cursor:"pointer",color:T.faint,fontSize:18,padding:"7px 10px",borderRadius:8,WebkitTapHighlightColor:"transparent"}}>×</button>
                   </div>
                 </div>
                 {/* Stats row — 3 colonnes responsives, pas de scroll */}
                 <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:6,marginTop:10,paddingLeft:6}}>
                   <div style={{background:T.card2,borderRadius:8,padding:"7px 9px",border:`1px solid ${T.border}`}}>
-                    <div style={{fontSize:9,color:T.faint,fontFamily:"'IBM Plex Mono'",letterSpacing:1,fontWeight:700,marginBottom:2}}>OBJECTIF</div>
-                    <div style={{fontSize:12,fontFamily:"'IBM Plex Mono'",color:c,fontWeight:800,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{p.objPoids>0?`${p.objPoids}`:"PDC"}<span style={{color:T.dim}}>×{p.objReps}×{p.objSeries}</span></div>
+                    <div style={{fontSize:9,color:T.faint,fontFamily:"'IBM Plex Mono'",letterSpacing:1,fontWeight:700,marginBottom:2}}>{validated?"OBJECTIF":"SUGGÉRÉ"}</div>
+                    <div style={{fontSize:12,fontFamily:"'IBM Plex Mono'",color:validated?c:T.dim,fontWeight:800,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",fontStyle:validated?"normal":"italic"}}>{dispP>0?`${dispP}`:"PDC"}<span style={{color:T.dim}}>×{dispR}×{dispS}</span></div>
                   </div>
                   <div style={{background:T.card2,borderRadius:8,padding:"7px 9px",border:`1px solid ${T.border}`}}>
-                    <div style={{fontSize:9,color:T.faint,fontFamily:"'IBM Plex Mono'",letterSpacing:1,fontWeight:700,marginBottom:2}}>PR POIDS</div>
-                    <div style={{fontSize:12,fontFamily:"'IBM Plex Mono'",color:T.green,fontWeight:800}}>{s.prPoids>0?`${s.prPoids.toFixed(1)}kg`:"—"}</div>
+                    <div style={{fontSize:9,color:T.faint,fontFamily:"'IBM Plex Mono'",letterSpacing:1,fontWeight:700,marginBottom:2}}>MEILLEURE</div>
+                    <div style={{fontSize:12,fontFamily:"'IBM Plex Mono'",color:T.green,fontWeight:800,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{s.bestStr}</div>
                   </div>
                   <div style={{background:T.card2,borderRadius:8,padding:"7px 9px",border:`1px solid ${T.border}`}}>
                     <div style={{fontSize:9,color:T.faint,fontFamily:"'IBM Plex Mono'",letterSpacing:1,fontWeight:700,marginBottom:2}}>OBJ. VOL</div>
@@ -1300,7 +1421,7 @@ export default function App() {
   const [logAdd,setLogAdd]=useState(null); // null | {defaultDate?}
   const [confirm,setConfirm]=useState(null);
   const [exDB,setExDB]=useState(INIT_EX);
-  const [weekPlan,setWeekPlan]=useState(INIT_WEEK_PLAN);
+  const [weekPlan,setWeekPlan]=useState(()=>{const w=isoWeekKey();return Object.fromEntries(Object.entries(INIT_WEEK_PLAN).map(([d,arr])=>[d,arr.map(p=>({...p,validatedFor:w}))]));});
   const [logs,setLogs]=useState(INIT_LOGS);
   const [logSearch,setLogSearch]=useState("");
   const [logDate,setLogDate]=useState("Tous");
@@ -1319,11 +1440,13 @@ export default function App() {
       const data = await loadData();
       if(data) {
         if(data.logs)     setLogs(data.logs);
-        if(data.weekPlan) setWeekPlan(data.weekPlan);
+        const week = isoWeekKey();
+        const stamp = wp => Object.fromEntries(Object.entries(wp||{}).map(([d,arr])=>[d,(arr||[]).map(p=>p.validatedFor?p:{...p,validatedFor:week})]));
+        if(data.weekPlan) setWeekPlan(stamp(data.weekPlan));
         else if(data.plans) {
           const migrated={};
           Object.entries(data.plans).forEach(([date,exos])=>{const day=dowOf(date);if(!migrated[day])migrated[day]=exos;});
-          if(Object.keys(migrated).length>0) setWeekPlan(migrated);
+          if(Object.keys(migrated).length>0) setWeekPlan(stamp(migrated));
         }
         if(data.exDB)  setExDB(data.exDB);
         if(data.bw!=null) { setBw(data.bw); setBwInput(String(data.bw)); }
@@ -1371,7 +1494,15 @@ export default function App() {
   },[logs,weekPlan,exDB,bw,loaded]);
 
   const today=todayFR();
-  const todayPlan=weekPlan[todayWeekday()]||[];
+  const currentWeekKey=useMemo(()=>isoWeekKey(),[]);
+  const rawTodayPlan=weekPlan[todayWeekday()]||[];
+  // For the séance, replace stale (non-validated) objectives with auto-suggestions so the user
+  // gets sensible defaults pre-filled in the input fields even if they haven't validated the week yet.
+  const todayPlan=useMemo(()=>rawTodayPlan.map(p=>{
+    if(p.validatedFor===currentWeekKey) return p;
+    const sug=suggestObjective(p.exo,exDB,logs,p);
+    return {...p,objPoids:sug.objPoids,objReps:sug.objReps,objSeries:sug.objSeries};
+  }),[rawTodayPlan,currentWeekKey,exDB,logs]);
   const todayLogs=logs.filter(l=>l.date===today);
 
   const addLog=useCallback((entry)=>{
