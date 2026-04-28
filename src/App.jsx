@@ -1427,6 +1427,7 @@ export default function App() {
   const [logs,setLogs]=useState(INIT_LOGS);
   const [logSearch,setLogSearch]=useState("");
   const [logDate,setLogDate]=useState("Tous");
+  const [expandedDates,setExpandedDates]=useState(()=>new Set());
   const [exSearch,setExSearch]=useState("");
   const [bw,setBw]=useState(80);
   const [showBwEdit,setShowBwEdit]=useState(false);
@@ -1663,44 +1664,60 @@ export default function App() {
                 Aucun log. Appuyez sur "+ Ajouter".
               </div>
             )}
-            <div style={{display:"flex",flexDirection:"column"}}>
+            {filteredLogs.length>0&&(
+              <div style={{display:"flex",gap:6,marginBottom:12}}>
+                <button onClick={()=>{const all=new Set([...new Set(filteredLogs.map(l=>l.date))]);setExpandedDates(all);}} style={ghostBtn({padding:"7px 11px",fontSize:11,fontFamily:"'IBM Plex Mono'",letterSpacing:.5,fontWeight:700,color:T.dim})}>↓ TOUT DÉPLIER</button>
+                <button onClick={()=>setExpandedDates(new Set())} style={ghostBtn({padding:"7px 11px",fontSize:11,fontFamily:"'IBM Plex Mono'",letterSpacing:.5,fontWeight:700,color:T.dim})}>↑ TOUT REPLIER</button>
+              </div>
+            )}
+            <div style={{display:"flex",flexDirection:"column",gap:6}}>
               {Object.entries(
                 filteredLogs.reduce((acc,log)=>{(acc[log.date]=acc[log.date]||[]).push(log);return acc;},{})
               ).sort((a,b)=>frSort(b[0],a[0])).map(([date,entries])=>{
                 const dateVol=entries.reduce((s,l)=>s+(l.volume||0),0);
+                const isOpen = expandedDates.has(date) || logDate===date;
+                const toggle = () => setExpandedDates(prev=>{const n=new Set(prev);if(n.has(date))n.delete(date);else n.add(date);return n;});
                 return(
-                  <div key={date} style={{marginBottom:22}}>
-                    {/* Date header */}
-                    <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:10,position:"sticky",top:62,zIndex:5,background:T.bg+"f0",backdropFilter:"blur(6px)",padding:"6px 0",borderRadius:8}}>
-                      <div style={{flex:1,minWidth:0}}>
-                        <div style={{fontFamily:"'Bebas Neue'",fontSize:18,letterSpacing:1.5,color:T.text,lineHeight:1}}>{dowOf(date).toUpperCase()} <span style={{color:T.dim,fontSize:13,letterSpacing:.5}}>· {date}</span></div>
-                        <div style={{fontFamily:"'IBM Plex Mono'",fontSize:10,color:T.amber,marginTop:3,fontWeight:800,letterSpacing:.5}}>{dateVol.toFixed(0)} KG · {entries.length} EXO{entries.length>1?"S":""}</div>
-                      </div>
-                      <button onClick={()=>setLogAdd({defaultDate:date})} style={ghostBtn({padding:"7px 11px",fontSize:12,fontFamily:"'Bebas Neue'",letterSpacing:1})}>+ EXO</button>
-                    </div>
-                    {/* Entries */}
-                    {entries.map((log,i)=>{
-                      const ex=exDB.find(e=>e.name===log.exo);
-                      const tcc=tc(ex?.type||"Push");
-                      return(
-                        <div key={i} style={{background:T.card,borderRadius:12,padding:"11px 14px",border:`1px solid ${T.border}`,marginBottom:6,position:"relative",overflow:"hidden"}}>
-                          <div style={{position:"absolute",left:0,top:0,bottom:0,width:3,background:tcc.grad}}/>
-                          <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:6,gap:8,paddingLeft:6}}>
-                            <div style={{flex:1,minWidth:0}}>
-                              <div style={{fontWeight:800,fontSize:14,color:T.text,letterSpacing:-.2}}>{log.exo}</div>
-                              {log.note&&<div style={{fontSize:11,color:T.dim,fontFamily:"'IBM Plex Mono'",marginTop:3,fontStyle:"italic",fontWeight:500}}>« {log.note} »</div>}
-                            </div>
-                            <div style={{display:"flex",gap:6,alignItems:"center"}}>
-                              <div style={{fontFamily:"'IBM Plex Mono'",fontWeight:800,color:tcc.bg,fontSize:12,whiteSpace:"nowrap"}}>{(log.volume||0).toFixed(0)}<span style={{color:T.dim,fontWeight:600}}>kg</span></div>
-                              <button onClick={()=>setLogEdit(log)} style={{background:T.ghost,border:"none",cursor:"pointer",color:T.dim,fontSize:13,padding:"6px 9px",borderRadius:8,WebkitTapHighlightColor:"transparent"}}>✏️</button>
-                            </div>
-                          </div>
-                          <div style={{fontFamily:"'IBM Plex Mono'",fontSize:12,color:T.dim,paddingLeft:6,display:"flex",flexWrap:"wrap",gap:"4px 10px",fontWeight:600}}>
-                            {log.series.map((s,j)=><span key={j}><span style={{color:T.text,fontWeight:800}}>{s.poids}</span><span style={{color:T.faint}}>kg×</span><span style={{color:T.text,fontWeight:800}}>{s.reps}</span></span>)}
-                          </div>
+                  <div key={date}>
+                    {/* Date header (clickable to toggle) */}
+                    <div style={{display:"flex",alignItems:"center",gap:8,background:isOpen?T.cardHi:T.card,border:`1px solid ${T.border}`,borderRadius:isOpen?"12px 12px 0 0":12,padding:"10px 12px",borderBottom:isOpen?"none":`1px solid ${T.border}`}}>
+                      <div role="button" tabIndex={0} onClick={toggle} onKeyDown={e=>{if(e.key==="Enter"||e.key===" "){e.preventDefault();toggle();}}}
+                        style={{flex:1,minWidth:0,cursor:"pointer",display:"flex",alignItems:"center",gap:10,WebkitTapHighlightColor:"transparent"}}>
+                        <span style={{fontSize:14,color:T.dim,fontFamily:"'IBM Plex Mono'",fontWeight:800,width:14,display:"inline-block",transition:"transform .15s",transform:isOpen?"rotate(90deg)":"rotate(0)"}}>›</span>
+                        <div style={{flex:1,minWidth:0}}>
+                          <div style={{fontFamily:"'Bebas Neue'",fontSize:17,letterSpacing:1.5,color:T.text,lineHeight:1}}>{dowOf(date).toUpperCase()} <span style={{color:T.dim,fontSize:13,letterSpacing:.5}}>· {date}</span></div>
+                          <div style={{fontFamily:"'IBM Plex Mono'",fontSize:10,color:T.amber,marginTop:3,fontWeight:800,letterSpacing:.5}}>{dateVol.toFixed(0)} KG · {entries.length} EXO{entries.length>1?"S":""}</div>
                         </div>
-                      );
-                    })}
+                      </div>
+                      <button onClick={(e)=>{e.stopPropagation();setLogAdd({defaultDate:date});}} style={ghostBtn({padding:"7px 10px",fontSize:11,fontFamily:"'Bebas Neue'",letterSpacing:1})}>+ EXO</button>
+                    </div>
+                    {/* Entries (only when expanded) */}
+                    {isOpen&&(
+                      <div style={{background:T.cardHi,border:`1px solid ${T.border}`,borderTop:"none",borderRadius:"0 0 12px 12px",padding:"6px 8px 8px",display:"flex",flexDirection:"column",gap:5}}>
+                        {entries.map((log,i)=>{
+                          const ex=exDB.find(e=>e.name===log.exo);
+                          const tcc=tc(ex?.type||"Push");
+                          return(
+                            <div key={i} style={{background:T.card,borderRadius:10,padding:"10px 12px",border:`1px solid ${T.border}`,position:"relative",overflow:"hidden"}}>
+                              <div style={{position:"absolute",left:0,top:0,bottom:0,width:3,background:tcc.grad}}/>
+                              <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:6,gap:8,paddingLeft:6}}>
+                                <div style={{flex:1,minWidth:0}}>
+                                  <div style={{fontWeight:800,fontSize:14,color:T.text,letterSpacing:-.2}}>{log.exo}</div>
+                                  {log.note&&<div style={{fontSize:11,color:T.dim,fontFamily:"'IBM Plex Mono'",marginTop:3,fontStyle:"italic",fontWeight:500}}>« {log.note} »</div>}
+                                </div>
+                                <div style={{display:"flex",gap:6,alignItems:"center"}}>
+                                  <div style={{fontFamily:"'IBM Plex Mono'",fontWeight:800,color:tcc.bg,fontSize:12,whiteSpace:"nowrap"}}>{(log.volume||0).toFixed(0)}<span style={{color:T.dim,fontWeight:600}}>kg</span></div>
+                                  <button onClick={()=>setLogEdit(log)} style={{background:T.ghost,border:"none",cursor:"pointer",color:T.dim,fontSize:13,padding:"6px 9px",borderRadius:8,WebkitTapHighlightColor:"transparent"}}>✏️</button>
+                                </div>
+                              </div>
+                              <div style={{fontFamily:"'IBM Plex Mono'",fontSize:12,color:T.dim,paddingLeft:6,display:"flex",flexWrap:"wrap",gap:"4px 10px",fontWeight:600}}>
+                                {log.series.map((s,j)=><span key={j}><span style={{color:T.text,fontWeight:800}}>{s.poids}</span><span style={{color:T.faint}}>kg×</span><span style={{color:T.text,fontWeight:800}}>{s.reps}</span></span>)}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
                   </div>
                 );
               })}
