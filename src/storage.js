@@ -1,6 +1,7 @@
 const SUPABASE_URL = 'https://gwohnwolpabyenpdnega.supabase.co'
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imd3b2hud29scGFieWVucGRuZWdhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzcwMjc2MjcsImV4cCI6MjA5MjYwMzYyN30.CjQ_uao-vgBTqeUUBZ_bSWka2xDRa5jHXjglMOs4Oj0'
 const LOCAL_KEY = 'kilo-data'
+const LAST_PUSHED_KEY = 'kilo-last-pushed-at'
 const LEGACY_DEVICE_KEY = 'kilo-device-id'
 
 // Single shared identifier — the app syncs everywhere automatically with no UI.
@@ -90,8 +91,15 @@ async function fetchLegacyData() {
   return null
 }
 
-// Pull-only: fetch remote, merge with local, persist merged to localStorage.
-// Does NOT push the merged result back automatically — push is now a manual action.
+function getLastPushedAt() {
+  return parseInt(localStorage.getItem(LAST_PUSHED_KEY) || '0', 10) || 0
+}
+function setLastPushedAt(ts) {
+  try { localStorage.setItem(LAST_PUSHED_KEY, String(ts || Date.now())) } catch {}
+}
+
+// Pull from cloud. If local has unpushed changes (dirty), merge with remote so they're kept.
+// If local is in sync with cloud, replace local with remote so the user *sees* what's on the cloud.
 export async function loadData() {
   const localData = readLocal()
   try {
@@ -100,12 +108,20 @@ export async function loadData() {
       const legacy = await fetchLegacyData()
       if (legacy) remote = legacy
     }
-    const merged = mergeData(localData, remote)
-    if (merged) {
-      const stamped = { ...merged, _savedAt: merged._savedAt || Date.now() }
-      try { localStorage.setItem(LOCAL_KEY, JSON.stringify(stamped)) } catch {}
-      return stamped
-    }
+    if (!remote) return localData
+
+    const localAt = localData?._savedAt || 0
+    const lastPushed = getLastPushedAt()
+    // "Dirty" = local has changes that haven't been pushed since last sync
+    const hasUnpushedLocal = !!localData && localAt > lastPushed
+
+    const result = hasUnpushedLocal ? mergeData(localData, remote) : remote
+    const stamped = { ...result, _savedAt: result._savedAt || Date.now() }
+    try { localStorage.setItem(LOCAL_KEY, JSON.stringify(stamped)) } catch {}
+
+    // If we just took remote wholesale, local is now in sync with cloud → record that.
+    if (!hasUnpushedLocal) setLastPushedAt(stamped._savedAt)
+    return stamped
   } catch (e) {
     console.warn('Supabase unavailable, using localStorage:', e)
   }
@@ -128,6 +144,8 @@ export async function pushRemote() {
     headers: { 'Prefer': 'resolution=merge-duplicates,return=minimal' },
     body: JSON.stringify({ device_id: DEVICE_ID, data, updated_at: new Date().toISOString() }),
   })
+  // Record that local is in sync with cloud — next pull won't trigger a merge if user doesn't edit.
+  setLastPushedAt(data._savedAt || Date.now())
   return true
 }
 

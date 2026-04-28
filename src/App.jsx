@@ -1457,8 +1457,9 @@ export default function App() {
         if(data.bw!=null) { setBw(data.bw); setBwInput(String(data.bw)); }
       }
     } catch(e){ console.error("Load error",e); }
-    // Release the pulling flag after React processes the resulting state updates
-    queueMicrotask(()=>{pullingRef.current=false;});
+    // Don't reset pullingRef here — the auto-save effect will reset it after running once with
+    // the post-pull state. This guarantees the post-pull state change does NOT re-stamp _savedAt
+    // and does NOT mark the app as dirty.
   },[]);
 
   const doPush=useCallback(async()=>{
@@ -1506,11 +1507,16 @@ export default function App() {
   // Local-only — never hits the network. Push to Supabase happens via the manual button.
   useEffect(()=>{
     if(!loaded) return;
+    if(pullingRef.current) {
+      // Pull just applied remote data to state. loadData() already wrote it to localStorage
+      // with the proper _savedAt; do NOT re-stamp here, do NOT mark dirty.
+      pullingRef.current=false;
+      return;
+    }
     clearTimeout(saveTimer.current);
     saveTimer.current=setTimeout(()=>{
       saveLocal({ logs, weekPlan, exDB, bw });
-      // Mark as dirty only when the change came from the user, not from a remote pull
-      if(!pullingRef.current) setDirty(true);
+      setDirty(true);
     },250);
     return ()=>clearTimeout(saveTimer.current);
   },[logs,weekPlan,exDB,bw,loaded]);
