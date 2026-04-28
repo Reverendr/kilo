@@ -1,5 +1,5 @@
 import { useState, useRef, useCallback, useMemo, useEffect } from "react";
-import { loadData, saveData, exportJSON, importJSON } from "./storage.js";
+import { loadData, saveLocal, pushRemote, exportJSON, importJSON } from "./storage.js";
 
 /* ─── FONTS ──────────────────────────────────────────────────────────────── */
 const FONTS = `@import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=IBM+Plex+Mono:wght@400;700&family=Inter:wght@400;500;600;700;800;900&display=swap');`;
@@ -1432,12 +1432,15 @@ export default function App() {
   const [showBwEdit,setShowBwEdit]=useState(false);
   const [bwInput,setBwInput]=useState("80");
   const [loaded,setLoaded]=useState(false);
-  const [saveStatus,setSaveStatus]=useState(null);
+  const [pushStatus,setPushStatus]=useState(null); // null | "pushing" | "pushed" | "error"
+  const [dirty,setDirty]=useState(false);
   const saveTimer=useRef(null);
   const lastPullAt=useRef(0);
+  const pullingRef=useRef(false);
 
   const reloadFromStorage=useCallback(async()=>{
     lastPullAt.current=Date.now();
+    pullingRef.current=true;
     try {
       const data = await loadData();
       if(data) {
@@ -1454,7 +1457,26 @@ export default function App() {
         if(data.bw!=null) { setBw(data.bw); setBwInput(String(data.bw)); }
       }
     } catch(e){ console.error("Load error",e); }
+    // Release the pulling flag after React processes the resulting state updates
+    queueMicrotask(()=>{pullingRef.current=false;});
   },[]);
+
+  const doPush=useCallback(async()=>{
+    if(pushStatus==="pushing")return;
+    setPushStatus("pushing");
+    try {
+      // Make sure localStorage is up to date with current state before pushing
+      saveLocal({logs,weekPlan,exDB,bw});
+      await pushRemote();
+      setDirty(false);
+      setPushStatus("pushed");
+      setTimeout(()=>setPushStatus(null),2000);
+    } catch(e) {
+      setPushStatus("error");
+      setTimeout(()=>setPushStatus(null),3000);
+      console.error("Push error",e);
+    }
+  },[pushStatus,logs,weekPlan,exDB,bw]);
 
   // ── LOAD from storage on mount ──────────────────────────────────────────
   useEffect(()=>{
@@ -1480,18 +1502,16 @@ export default function App() {
     };
   },[loaded,reloadFromStorage]);
 
-  // ── SAVE whenever data changes (debounced 800ms) ─────────────────────────
+  // ── PERSIST LOCALLY whenever data changes (debounced 250ms) ──────────────
+  // Local-only — never hits the network. Push to Supabase happens via the manual button.
   useEffect(()=>{
     if(!loaded) return;
     clearTimeout(saveTimer.current);
-    setSaveStatus("saving");
-    saveTimer.current=setTimeout(async()=>{
-      try {
-        await saveData({ logs, weekPlan, exDB, bw });
-        setSaveStatus("saved");
-        setTimeout(()=>setSaveStatus(null),2000);
-      } catch(e){ setSaveStatus("error"); console.error("Save error",e); }
-    },800);
+    saveTimer.current=setTimeout(()=>{
+      saveLocal({ logs, weekPlan, exDB, bw });
+      // Mark as dirty only when the change came from the user, not from a remote pull
+      if(!pullingRef.current) setDirty(true);
+    },250);
     return ()=>clearTimeout(saveTimer.current);
   },[logs,weekPlan,exDB,bw,loaded]);
 
@@ -1550,7 +1570,11 @@ export default function App() {
           <div style={{fontSize:10,color:T.faint,fontFamily:"'IBM Plex Mono'",marginTop:3,letterSpacing:.5,fontWeight:600}}>{todayLabel().toUpperCase()}</div>
         </div>
         <div style={{display:"flex",gap:6,alignItems:"center"}}>
-          <button onClick={()=>{if(Date.now()-lastPullAt.current<2000)return;reloadFromStorage();}} title="Synchroniser maintenant" style={{background:T.ghost,color:saveStatus==="saving"?T.amber:saveStatus==="error"?T.red:T.green,border:`1px solid ${T.border}`,borderRadius:10,padding:"10px 11px",fontSize:14,cursor:"pointer",WebkitTapHighlightColor:"transparent"}}>↻</button>
+          <button onClick={()=>{if(Date.now()-lastPullAt.current<2000)return;reloadFromStorage();}} title="Récupérer depuis le cloud" style={{background:T.ghost,color:T.dim,border:`1px solid ${T.border}`,borderRadius:10,padding:"10px 11px",fontSize:14,cursor:"pointer",WebkitTapHighlightColor:"transparent"}}>↻</button>
+          <button onClick={doPush} title={dirty?"Changements à sauvegarder":"À jour"} disabled={pushStatus==="pushing"} style={{background:dirty?T.red+"22":T.ghost,color:pushStatus==="error"?T.red:pushStatus==="pushed"?T.green:dirty?T.red:T.dim,border:`1px solid ${dirty?T.red+"55":T.border}`,borderRadius:10,padding:"10px 11px",fontSize:14,cursor:pushStatus==="pushing"?"wait":"pointer",WebkitTapHighlightColor:"transparent",position:"relative",fontWeight:700,opacity:pushStatus==="pushing"?.6:1}}>
+            {pushStatus==="pushing"?"…":pushStatus==="pushed"?"✓":pushStatus==="error"?"⚠":"💾"}
+            {dirty&&pushStatus===null&&<span style={{position:"absolute",top:4,right:4,width:7,height:7,borderRadius:4,background:T.red,boxShadow:`0 0 6px ${T.red}aa`}}/>}
+          </button>
           {showBwEdit?(
             <div style={{display:"flex",gap:5,alignItems:"center"}}>
               <input type="number" value={bwInput} onChange={e=>setBwInput(e.target.value)} style={{...T.inp,width:70,padding:"8px 10px",fontSize:13}} autoFocus/>
@@ -1560,11 +1584,6 @@ export default function App() {
             <button onClick={()=>setShowBwEdit(true)} style={{background:T.ghost,color:T.textDim,border:"none",borderRadius:10,padding:"10px 13px",fontSize:11,cursor:"pointer",fontFamily:"'IBM Plex Mono'",fontWeight:800,letterSpacing:.5,WebkitTapHighlightColor:"transparent"}}>PDC {bw}kg</button>
           )}
           <button onClick={()=>setTimer(true)} style={{background:T.ghost,color:T.textDim,border:"none",borderRadius:10,padding:"10px 13px",fontSize:16,cursor:"pointer",WebkitTapHighlightColor:"transparent"}}>⏱</button>
-          <div style={{minWidth:14,textAlign:"center"}}>
-            {saveStatus==="saving"&&<div style={{width:6,height:6,borderRadius:3,background:T.amber,animation:"pulse 1s infinite"}}/>}
-            {saveStatus==="saved"&&<div style={{width:6,height:6,borderRadius:3,background:T.green}}/>}
-            {saveStatus==="error"&&<div style={{width:6,height:6,borderRadius:3,background:T.red}}/>}
-          </div>
         </div>
       </div>
 

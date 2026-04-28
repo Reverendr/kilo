@@ -90,6 +90,8 @@ async function fetchLegacyData() {
   return null
 }
 
+// Pull-only: fetch remote, merge with local, persist merged to localStorage.
+// Does NOT push the merged result back automatically — push is now a manual action.
 export async function loadData() {
   const localData = readLocal()
   try {
@@ -102,14 +104,6 @@ export async function loadData() {
     if (merged) {
       const stamped = { ...merged, _savedAt: merged._savedAt || Date.now() }
       try { localStorage.setItem(LOCAL_KEY, JSON.stringify(stamped)) } catch {}
-      // If our merge produced something different from what's on the server, push it back so
-      // every other device converges to the union on their next pull.
-      const localCount = (localData?.logs || []).length
-      const remoteCount = (remote?.logs || []).length
-      const mergedCount = (merged.logs || []).length
-      if (mergedCount > remoteCount || mergedCount > localCount || !remote) {
-        saveData(stamped).catch(() => {})
-      }
       return stamped
     }
   } catch (e) {
@@ -118,22 +112,27 @@ export async function loadData() {
   return localData
 }
 
-export async function saveData(data) {
+// Local-only persistence on every change. Cheap, no network.
+export function saveLocal(data) {
   const payload = { ...data, _savedAt: data._savedAt ?? Date.now() }
   try { localStorage.setItem(LOCAL_KEY, JSON.stringify(payload)) } catch (e) {}
-  try {
-    // Proper UPSERT — relies on UNIQUE/PK on device_id (PostgREST resolution=merge-duplicates)
-    await supabaseFetch('kilo_data?on_conflict=device_id', {
-      method: 'POST',
-      headers: { 'Prefer': 'resolution=merge-duplicates,return=minimal' },
-      body: JSON.stringify({ device_id: DEVICE_ID, data: payload, updated_at: new Date().toISOString() }),
-    })
-    return true
-  } catch (e) {
-    console.warn('Supabase save failed (data kept in localStorage):', e)
-    return false
-  }
+  return payload
 }
+
+// Manual push: read whatever is in localStorage and upsert it to Supabase.
+export async function pushRemote() {
+  const data = readLocal()
+  if (!data) return false
+  await supabaseFetch('kilo_data?on_conflict=device_id', {
+    method: 'POST',
+    headers: { 'Prefer': 'resolution=merge-duplicates,return=minimal' },
+    body: JSON.stringify({ device_id: DEVICE_ID, data, updated_at: new Date().toISOString() }),
+  })
+  return true
+}
+
+// Backward-compat shim — old call sites can still call saveData(d) and it just persists locally.
+export const saveData = saveLocal
 
 export function exportJSON(data) {
   const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' })
