@@ -1,5 +1,5 @@
 import { useState, useRef, useCallback, useMemo, useEffect } from "react";
-import { loadData, saveData, exportJSON, importJSON } from "./storage.js";
+import { loadData, saveData, exportJSON, importJSON, getUserId, setUserId } from "./storage.js";
 
 /* ─── FONTS ──────────────────────────────────────────────────────────────── */
 const FONTS = `@import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=IBM+Plex+Mono:wght@400;700&family=Inter:wght@400;500;600;700;800;900&display=swap');`;
@@ -346,6 +346,34 @@ function ConfirmModal({title="Confirmer",message,confirmLabel="Supprimer",cancel
           <button onClick={onClose} style={ghostBtn({padding:"14px",fontSize:14})}>{cancelLabel}</button>
           <button onClick={()=>{onConfirm();onClose();}} style={btn(danger?T.red:T.green,"#fff",{padding:"14px",fontSize:14})}>{confirmLabel}</button>
         </div>
+      </div>
+    </div>
+  );
+}
+
+/* ─── SYNC MODAL — identifiant partagé entre appareils ──────────────────── */
+function SyncModal({currentId, firstRun, onSave, onClose}) {
+  const [v,setV]=useState(currentId||"");
+  const norm = String(v||'').trim().toLowerCase().replace(/[^a-z0-9_-]/g,'-').slice(0,40);
+  return(
+    <div onClick={firstRun?undefined:onClose} style={{position:"fixed",inset:0,background:"#000d",zIndex:1100,display:"flex",alignItems:"center",justifyContent:"center",padding:20,backdropFilter:"blur(6px)"}}>
+      <div onClick={e=>e.stopPropagation()} style={{background:T.card,borderRadius:18,padding:"22px 22px 18px",width:"100%",maxWidth:420,border:`1px solid ${T.border}`,boxShadow:T.shadow}}>
+        <div style={{fontFamily:"'Bebas Neue'",fontSize:13,letterSpacing:3,color:T.red,marginBottom:6}}>{firstRun?"BIENVENUE":"SYNCHRONISATION"}</div>
+        <div style={{fontWeight:900,fontSize:20,color:T.text,marginBottom:8,letterSpacing:-.3}}>Identifiant de sync</div>
+        <div style={{fontSize:13,color:T.dim,lineHeight:1.5,marginBottom:16}}>
+          Choisis un identifiant <strong style={{color:T.text}}>unique et secret</strong> (ex: ton prénom + un chiffre). Tape-le ensuite à l'identique sur tes autres appareils — mobile, desktop — pour partager les mêmes données.
+        </div>
+        <label style={T.lbl}>IDENTIFIANT</label>
+        <input value={v} onChange={e=>setV(e.target.value)} placeholder="ex: romain-42" autoFocus
+          style={{...T.inp,fontFamily:"'IBM Plex Mono'",fontSize:15,marginBottom:6}}/>
+        <div style={{fontSize:11,color:T.faint,fontFamily:"'IBM Plex Mono'",marginBottom:16,minHeight:14}}>
+          {norm?<>→ <span style={{color:T.green}}>{norm}</span></>:""}
+        </div>
+        <div style={{display:"grid",gridTemplateColumns:firstRun?"1fr":"1fr 1fr",gap:8}}>
+          {!firstRun&&<button onClick={onClose} style={ghostBtn({padding:"14px",fontSize:14})}>Annuler</button>}
+          <button onClick={()=>{if(norm){onSave(norm);}}} disabled={!norm} style={btn(T.green,"#fff",{padding:"14px",fontSize:14,opacity:norm?1:.4,boxShadow:norm?`0 4px 12px ${T.green}55`:"none"})}>{firstRun?"✓ ACTIVER LA SYNC":"✓ Enregistrer"}</button>
+        </div>
+        {firstRun&&<button onClick={onClose} style={{background:"none",border:"none",color:T.faint,fontSize:12,cursor:"pointer",marginTop:10,width:"100%",padding:6,fontFamily:"'Inter',sans-serif"}}>Plus tard (mode local seulement)</button>}
       </div>
     </div>
   );
@@ -1310,29 +1338,36 @@ export default function App() {
   const [bwInput,setBwInput]=useState("80");
   const [loaded,setLoaded]=useState(false);
   const [saveStatus,setSaveStatus]=useState(null);
+  const [userId,setUserIdState]=useState(()=>getUserId());
+  const [showSync,setShowSync]=useState(false);
+  const [firstRunSync,setFirstRunSync]=useState(false);
   const saveTimer=useRef(null);
+
+  const reloadFromStorage=useCallback(async()=>{
+    try {
+      const data = await loadData();
+      if(data) {
+        if(data.logs)     setLogs(data.logs);
+        if(data.weekPlan) setWeekPlan(data.weekPlan);
+        else if(data.plans) {
+          const migrated={};
+          Object.entries(data.plans).forEach(([date,exos])=>{const day=dowOf(date);if(!migrated[day])migrated[day]=exos;});
+          if(Object.keys(migrated).length>0) setWeekPlan(migrated);
+        }
+        if(data.exDB)  setExDB(data.exDB);
+        if(data.bw!=null) { setBw(data.bw); setBwInput(String(data.bw)); }
+      }
+    } catch(e){ console.error("Load error",e); }
+  },[]);
 
   // ── LOAD from storage on mount ──────────────────────────────────────────
   useEffect(()=>{
     (async()=>{
-      try {
-        const data = await loadData();
-        if(data) {
-          if(data.logs)     setLogs(data.logs);
-          if(data.weekPlan) setWeekPlan(data.weekPlan);
-          else if(data.plans) {
-            // Migration depuis l'ancien format date → jour de semaine
-            const migrated={};
-            Object.entries(data.plans).forEach(([date,exos])=>{const day=dowOf(date);if(!migrated[day])migrated[day]=exos;});
-            if(Object.keys(migrated).length>0) setWeekPlan(migrated);
-          }
-          if(data.exDB)  setExDB(data.exDB);
-          if(data.bw!=null) { setBw(data.bw); setBwInput(String(data.bw)); }
-        }
-      } catch(e){ console.error("Load error",e); }
+      await reloadFromStorage();
       setLoaded(true);
+      if(!getUserId()) { setFirstRunSync(true); setShowSync(true); }
     })();
-  },[]);
+  },[reloadFromStorage]);
 
   // ── SAVE whenever data changes (debounced 800ms) ─────────────────────────
   useEffect(()=>{
@@ -1385,6 +1420,7 @@ export default function App() {
       {logEdit&&<LogEditor log={logEdit} exDB={exDB} onSave={updateLog} onDelete={removeLog} onClose={()=>setLogEdit(null)} bw={bw}/>}
       {logAdd&&<LogAddModal defaultDate={logAdd.defaultDate} exDB={exDB} onSave={addLog} onClose={()=>setLogAdd(null)} bw={bw}/>}
       {confirm&&<ConfirmModal title={confirm.title} message={confirm.message} confirmLabel={confirm.confirmLabel} onConfirm={confirm.onConfirm} onClose={()=>setConfirm(null)}/>}
+      {showSync&&<SyncModal currentId={userId} firstRun={firstRunSync} onClose={()=>{setShowSync(false);setFirstRunSync(false);}} onSave={async(id)=>{const v=setUserId(id);setUserIdState(v);setShowSync(false);setFirstRunSync(false);await reloadFromStorage();setSaveStatus("saving");try{await saveData({logs,weekPlan,exDB,bw});setSaveStatus("saved");setTimeout(()=>setSaveStatus(null),2000);}catch(e){setSaveStatus("error");}}}/>}
 
       {/* HEADER */}
       <div style={{padding:"14px 16px 12px calc(16px + env(safe-area-inset-left, 0px))",paddingRight:"calc(16px + env(safe-area-inset-right, 0px))",display:"flex",justifyContent:"space-between",alignItems:"center",position:"sticky",top:0,background:T.bg+"ee",backdropFilter:"blur(10px)",zIndex:90,borderBottom:`1px solid ${T.border}`}}>
@@ -1396,6 +1432,10 @@ export default function App() {
           <div style={{fontSize:10,color:T.faint,fontFamily:"'IBM Plex Mono'",marginTop:3,letterSpacing:.5,fontWeight:600}}>{todayLabel().toUpperCase()}</div>
         </div>
         <div style={{display:"flex",gap:6,alignItems:"center"}}>
+          <button onClick={()=>{setFirstRunSync(false);setShowSync(true);}} title={userId?`Sync : ${userId}`:"Sync OFF"} style={{background:userId?T.green+"22":T.ghost,color:userId?T.green:T.faint,border:`1px solid ${userId?T.green+"55":T.border}`,borderRadius:10,padding:"10px 11px",fontSize:13,cursor:"pointer",WebkitTapHighlightColor:"transparent",display:"flex",alignItems:"center",gap:5,fontFamily:"'IBM Plex Mono'",fontWeight:800,letterSpacing:.5}}>
+            <span style={{fontSize:10}}>{userId?"●":"○"}</span>
+            <span style={{maxWidth:80,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{userId||"SYNC"}</span>
+          </button>
           {showBwEdit?(
             <div style={{display:"flex",gap:5,alignItems:"center"}}>
               <input type="number" value={bwInput} onChange={e=>setBwInput(e.target.value)} style={{...T.inp,width:70,padding:"8px 10px",fontSize:13}} autoFocus/>
