@@ -428,8 +428,8 @@ const ghostBtn = (extra={}) => ({background:"transparent",color:T.dim,border:`1.
 /* ─── CONFIRM MODAL (réutilisable pour toutes les suppressions) ──────────── */
 function ConfirmModal({title="Confirmer",message,confirmLabel="Supprimer",cancelLabel="Annuler",danger=true,onConfirm,onClose}) {
   return(
-    <div onClick={onClose} style={{position:"fixed",inset:0,background:"#000c",zIndex:1000,display:"flex",alignItems:"center",justifyContent:"center",padding:20,backdropFilter:"blur(4px)"}}>
-      <div onClick={e=>e.stopPropagation()} style={{background:T.card,borderRadius:18,padding:"22px 22px 18px",width:"100%",maxWidth:380,border:`1px solid ${T.border}`,boxShadow:T.shadow}}>
+    <div onClick={onClose} className="k-modal-bg" style={{position:"fixed",inset:0,background:"#000c",zIndex:1000,display:"flex",alignItems:"center",justifyContent:"center",padding:20,backdropFilter:"blur(4px)"}}>
+      <div onClick={e=>e.stopPropagation()} className="k-modal" style={{background:T.card,borderRadius:18,padding:"22px 22px 18px",width:"100%",maxWidth:380,border:`1px solid ${T.border}`,boxShadow:T.shadow}}>
         <div style={{fontFamily:"'Inter',sans-serif",fontSize:18,fontWeight:800,color:T.text,marginBottom:8,letterSpacing:-.2}}>{title}</div>
         <div style={{fontSize:14,color:T.dim,lineHeight:1.5,marginBottom:20}}>{message}</div>
         <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
@@ -451,8 +451,8 @@ function Timer({onClose}) {
   const R=72,C=2*Math.PI*R,pct=t>0?1-r/t:1;
   const accent = done?T.green:T.red;
   return(
-    <div onClick={onClose} style={{position:"fixed",inset:0,background:"#000c",zIndex:999,display:"flex",alignItems:"center",justifyContent:"center",padding:20,backdropFilter:"blur(6px)"}}>
-      <div onClick={e=>e.stopPropagation()} style={{background:T.card,border:`1px solid ${T.border}`,borderRadius:24,padding:"32px 28px 26px",textAlign:"center",minWidth:300,boxShadow:`0 8px 40px rgba(0,0,0,.5), 0 0 0 1px ${T.border}`}}>
+    <div onClick={onClose} className="k-modal-bg" style={{position:"fixed",inset:0,background:"#000c",zIndex:999,display:"flex",alignItems:"center",justifyContent:"center",padding:20,backdropFilter:"blur(6px)"}}>
+      <div onClick={e=>e.stopPropagation()} className="k-modal" style={{background:T.card,border:`1px solid ${T.border}`,borderRadius:24,padding:"32px 28px 26px",textAlign:"center",minWidth:300,boxShadow:`0 8px 40px rgba(0,0,0,.5), 0 0 0 1px ${T.border}`}}>
         <div style={{fontFamily:"'Bebas Neue'",fontSize:13,letterSpacing:6,color:T.dim,marginBottom:20}}>REPOS</div>
         <svg width={170} height={170} style={{display:"block",margin:"0 auto 18px"}}>
           <circle cx={85} cy={85} r={R} fill="none" stroke={T.ghost} strokeWidth={9}/>
@@ -582,7 +582,7 @@ function ExCard({plan, exDB, onLog, todayLogs, allLogs, bw}) {
               <span style={{color:T.textDim}}>Volume <strong style={{color:col,fontFamily:"'IBM Plex Mono'",marginLeft:4}}>{vol.toFixed(0)} kg</strong></span>
               {objVol>0&&<span style={{color:vol>=objVol?T.green:T.dim,fontFamily:"'IBM Plex Mono'"}}>{vol>=objVol?"✓ atteint":`/ ${objVol.toFixed(0)} kg`}</span>}
             </div>
-            {objVol>0&&<div style={{height:5,background:T.ghost,borderRadius:3,overflow:"hidden"}}><div style={{width:`${Math.min(vol/objVol*100,100)}%`,height:"100%",background:vol>=objVol?T.green:tcol.grad,borderRadius:3,transition:"width .4s"}}/></div>}
+            {objVol>0&&<div style={{height:5,background:T.ghost,borderRadius:3,overflow:"hidden"}}><div style={{width:`${Math.min(vol/objVol*100,100)}%`,height:"100%",background:vol>=objVol?T.green:tcol.grad,borderRadius:3,transition:"width .4s ease, background .25s"}}/></div>}
           </div>
         )}
         <input value={note} onChange={e=>setNote(e.target.value)} placeholder="Remarque…"
@@ -885,9 +885,9 @@ function Planner({weekPlan, setWeekPlan, exDB, allLogs, bw}) {
 }
 
 /* ─── STATS ──────────────────────────────────────────────────────────────── */
-function StatCard({label, value, accent, sub}) {
+function StatCard({label, value, accent, sub, delay=0}) {
   return(
-    <div style={{background:T.card,borderRadius:14,padding:"14px 16px",border:`1px solid ${T.border}`,position:"relative",overflow:"hidden"}}>
+    <div className="k-pop" style={{background:T.card,borderRadius:14,padding:"14px 16px",border:`1px solid ${T.border}`,position:"relative",overflow:"hidden",animationDelay:`${delay}ms`}}>
       <div style={{position:"absolute",left:0,top:0,bottom:0,width:3,background:accent}}/>
       <div style={{fontSize:10,color:T.faint,fontFamily:"'IBM Plex Mono'",letterSpacing:1.5,marginBottom:6,fontWeight:700,paddingLeft:4}}>{label}</div>
       <div style={{fontFamily:"'Bebas Neue'",fontSize:32,color:T.text,letterSpacing:1,lineHeight:1,paddingLeft:4}}>{value}</div>
@@ -1020,10 +1020,10 @@ function Stats({logs, exDB}) {
 
       {/* Hero KPIs */}
       <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
-        <StatCard label="SÉANCES" value={nSess} accent={T.text} sub={weekStreak>0?`Série de ${weekStreak} sem.`:""}/>
-        <StatCard label="VOLUME TOTAL" value={`${(totalVol/1000).toFixed(1)}t`} accent={T.green} sub={nSess>0?`${(totalVol/nSess/1000).toFixed(1)}t / séance`:""}/>
-        <StatCard label="SÉRIES" value={totalSeries} accent={T.amber} sub={`${totalReps} reps total`}/>
-        <StatCard label="RECORDS" value={prPerExo.length} accent={T.purple} sub="Exercices PR"/>
+        <StatCard label="SÉANCES" value={nSess} accent={T.text} sub={weekStreak>0?`Série de ${weekStreak} sem.`:""} delay={0}/>
+        <StatCard label="VOLUME TOTAL" value={`${(totalVol/1000).toFixed(1)}t`} accent={T.green} sub={nSess>0?`${(totalVol/nSess/1000).toFixed(1)}t / séance`:""} delay={60}/>
+        <StatCard label="SÉRIES" value={totalSeries} accent={T.amber} sub={`${totalReps} reps total`} delay={120}/>
+        <StatCard label="RECORDS" value={prPerExo.length} accent={T.purple} sub="Exercices PR" delay={180}/>
       </div>
 
       {/* Volume chart */}
@@ -1095,9 +1095,9 @@ function Stats({logs, exDB}) {
         <div style={{background:T.card,borderRadius:14,padding:"14px 16px",border:`1px solid ${T.border}`}}>
           <div style={{fontFamily:"'Bebas Neue'",fontSize:14,letterSpacing:2.5,color:T.dim,marginBottom:14}}>RÉPARTITION PAR TYPE</div>
           <div style={{display:"flex",height:14,borderRadius:7,overflow:"hidden",marginBottom:12,background:T.ghost}}>
-            {volByType.filter(([,v])=>v>0).map(([t,v])=>{
+            {volByType.filter(([,v])=>v>0).map(([t,v],i)=>{
               const pct=(v/totalVolByType)*100;
-              return <div key={t} title={`${t}: ${v.toFixed(0)} kg`} style={{width:`${pct}%`,background:tc(t).grad,transition:"width .3s"}}/>;
+              return <div key={t} className="k-bar" title={`${t}: ${v.toFixed(0)} kg`} style={{width:`${pct}%`,background:tc(t).grad,transition:"width .3s",animationDelay:`${i*80}ms`}}/>;
             })}
           </div>
           <div style={{display:"grid",gridTemplateColumns:"repeat(2,1fr)",gap:8}}>
@@ -1122,19 +1122,19 @@ function Stats({logs, exDB}) {
       {volByMuscle.length>0&&(
         <div style={{background:T.card,borderRadius:14,padding:"14px 16px",border:`1px solid ${T.border}`}}>
           <div style={{fontFamily:"'Bebas Neue'",fontSize:14,letterSpacing:2.5,color:T.dim,marginBottom:14}}>VOLUME PAR MUSCLE</div>
-          {volByMuscle.slice(0,10).map(([muscle,vol])=>{
+          {volByMuscle.slice(0,10).map(([muscle,vol],i)=>{
             const ex=exDB.find(e=>e.muscle===muscle);
             const tcc=tc(ex?.type||"Push");
             const mx=volByMuscle[0][1];
             const pct=(vol/mx)*100;
             return(
-              <div key={muscle} style={{marginBottom:11}}>
+              <div key={muscle} className="k-row" style={{marginBottom:11,animationDelay:`${i*40}ms`}}>
                 <div style={{display:"flex",justifyContent:"space-between",marginBottom:5,fontSize:13}}>
                   <span style={{color:T.textDim,fontWeight:600}}>{muscle}</span>
                   <span style={{fontFamily:"'IBM Plex Mono'",color:tcc.bg,fontSize:12,fontWeight:800}}>{vol>=1000?`${(vol/1000).toFixed(1)}t`:`${vol.toFixed(0)}kg`}</span>
                 </div>
                 <div style={{height:6,background:T.ghost,borderRadius:3,overflow:"hidden"}}>
-                  <div style={{width:`${pct}%`,height:"100%",background:tcc.grad,borderRadius:3,transition:"width .4s"}}/>
+                  <div className="k-bar" style={{width:`${pct}%`,height:"100%",background:tcc.grad,borderRadius:3,transition:"width .4s",animationDelay:`${i*40+150}ms`}}/>
                 </div>
               </div>
             );
@@ -1199,18 +1199,18 @@ function Stats({logs, exDB}) {
       {volByExo.length>0&&(
         <div style={{background:T.card,borderRadius:14,padding:"14px 16px",border:`1px solid ${T.border}`}}>
           <div style={{fontFamily:"'Bebas Neue'",fontSize:14,letterSpacing:2.5,color:T.dim,marginBottom:14}}>VOLUME CUMULÉ — EXERCICES</div>
-          {volByExo.slice(0,12).map(([exo,vol])=>{
+          {volByExo.slice(0,12).map(([exo,vol],i)=>{
             const ex=exDB.find(e=>e.name===exo);
             const tcc=tc(ex?.type||"Push");
             const mx=volByExo[0][1];
             return(
-              <div key={exo} style={{marginBottom:9}}>
+              <div key={exo} className="k-row" style={{marginBottom:9,animationDelay:`${i*30}ms`}}>
                 <div style={{display:"flex",justifyContent:"space-between",marginBottom:4,fontSize:12,gap:8}}>
                   <span style={{color:T.textDim,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",fontWeight:600}}>{exo}</span>
                   <span style={{fontFamily:"'IBM Plex Mono'",color:tcc.bg,fontSize:11,fontWeight:800,whiteSpace:"nowrap"}}>{vol>=1000?`${(vol/1000).toFixed(1)}t`:`${vol.toFixed(0)}kg`}</span>
                 </div>
                 <div style={{height:5,background:T.ghost,borderRadius:3,overflow:"hidden"}}>
-                  <div style={{width:`${(vol/mx)*100}%`,height:"100%",background:tcc.grad,borderRadius:3}}/>
+                  <div className="k-bar" style={{width:`${(vol/mx)*100}%`,height:"100%",background:tcc.grad,borderRadius:3,animationDelay:`${i*30+150}ms`}}/>
                 </div>
               </div>
             );
@@ -1245,8 +1245,8 @@ function LogEditor({log, exDB, onSave, onDelete, onClose, bw}) {
   return(
     <>
     {confirmDel&&<ConfirmModal title="Supprimer ce log ?" message={`"${log.exo}" du ${log.date} sera définitivement supprimé.`} onConfirm={()=>{onDelete(log);onClose();}} onClose={()=>setConfirmDel(false)}/>}
-    <div onClick={onClose} style={{position:"fixed",inset:0,background:"#000c",zIndex:500,display:"flex",alignItems:"flex-end",justifyContent:"center",backdropFilter:"blur(4px)"}}>
-      <div onClick={e=>e.stopPropagation()} style={{background:T.card,borderRadius:"20px 20px 0 0",padding:"20px 16px calc(20px + env(safe-area-inset-bottom, 0px))",width:"100%",maxWidth:600,maxHeight:"86vh",overflowY:"auto",border:`1px solid ${T.border}`,borderBottom:"none"}}>
+    <div onClick={onClose} className="k-modal-bg" style={{position:"fixed",inset:0,background:"#000c",zIndex:500,display:"flex",alignItems:"flex-end",justifyContent:"center",backdropFilter:"blur(4px)"}}>
+      <div onClick={e=>e.stopPropagation()} className="k-sheet" style={{background:T.card,borderRadius:"20px 20px 0 0",padding:"20px 16px calc(20px + env(safe-area-inset-bottom, 0px))",width:"100%",maxWidth:600,maxHeight:"86vh",overflowY:"auto",border:`1px solid ${T.border}`,borderBottom:"none"}}>
         <div style={{height:4,width:40,background:T.borderHi,borderRadius:2,margin:"0 auto 16px"}}/>
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:16,gap:10}}>
           <div style={{flex:1,minWidth:0}}>
@@ -1310,8 +1310,8 @@ function LogAddModal({defaultDate, exDB, onSave, onClose, bw}) {
   };
 
   return(
-    <div onClick={onClose} style={{position:"fixed",inset:0,background:"#000c",zIndex:500,display:"flex",alignItems:"flex-end",justifyContent:"center",backdropFilter:"blur(4px)"}}>
-      <div onClick={e=>e.stopPropagation()} style={{background:T.card,borderRadius:"20px 20px 0 0",padding:"20px 16px calc(20px + env(safe-area-inset-bottom, 0px))",width:"100%",maxWidth:600,maxHeight:"86vh",overflowY:"auto",border:`1px solid ${T.border}`,borderBottom:"none"}}>
+    <div onClick={onClose} className="k-modal-bg" style={{position:"fixed",inset:0,background:"#000c",zIndex:500,display:"flex",alignItems:"flex-end",justifyContent:"center",backdropFilter:"blur(4px)"}}>
+      <div onClick={e=>e.stopPropagation()} className="k-sheet" style={{background:T.card,borderRadius:"20px 20px 0 0",padding:"20px 16px calc(20px + env(safe-area-inset-bottom, 0px))",width:"100%",maxWidth:600,maxHeight:"86vh",overflowY:"auto",border:`1px solid ${T.border}`,borderBottom:"none"}}>
         <div style={{height:4,width:40,background:T.borderHi,borderRadius:2,margin:"0 auto 16px"}}/>
         {step==="pick"?(
           <>
@@ -1383,8 +1383,8 @@ function ExModal({initial, onSave, onDelete, onClose}) {
   return(
     <>
     {confirmDel&&onDelete&&<ConfirmModal title="Supprimer cet exercice ?" message={`"${initial?.name}" sera retiré de la base. Les logs existants ne seront pas affectés.`} onConfirm={()=>{onDelete();onClose();}} onClose={()=>setConfirmDel(false)}/>}
-    <div onClick={onClose} style={{position:"fixed",inset:0,background:"#000c",zIndex:500,display:"flex",alignItems:"flex-end",justifyContent:"center",backdropFilter:"blur(4px)"}}>
-      <div onClick={e=>e.stopPropagation()} style={{background:T.card,borderRadius:"20px 20px 0 0",padding:"20px 16px calc(20px + env(safe-area-inset-bottom, 0px))",width:"100%",maxWidth:500,border:`1px solid ${T.border}`,borderBottom:"none"}}>
+    <div onClick={onClose} className="k-modal-bg" style={{position:"fixed",inset:0,background:"#000c",zIndex:500,display:"flex",alignItems:"flex-end",justifyContent:"center",backdropFilter:"blur(4px)"}}>
+      <div onClick={e=>e.stopPropagation()} className="k-sheet" style={{background:T.card,borderRadius:"20px 20px 0 0",padding:"20px 16px calc(20px + env(safe-area-inset-bottom, 0px))",width:"100%",maxWidth:500,border:`1px solid ${T.border}`,borderBottom:"none"}}>
         <div style={{height:4,width:40,background:T.borderHi,borderRadius:2,margin:"0 auto 16px"}}/>
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
           <div style={{fontWeight:900,fontSize:18,color:T.text,letterSpacing:-.3}}>{initial?"Modifier l'exercice":"Nouvel exercice"}</div>
@@ -1551,15 +1551,63 @@ export default function App() {
   const typeColors=Object.entries(TYPE_COLORS);
 
   const navBtn=(key,label)=>(
-    <button key={key} onClick={()=>setTab(key)} style={{flex:1,background:tab===key?T.cardHi:"transparent",color:tab===key?T.text:T.faint,border:"none",borderRadius:10,padding:"9px 4px",fontFamily:"'Bebas Neue'",fontSize:13,letterSpacing:1.5,cursor:"pointer",transition:"all .15s",display:"flex",flexDirection:"column",alignItems:"center",gap:3,WebkitTapHighlightColor:"transparent"}}>
-      <span style={{display:"block",width:tab===key?20:0,height:2,background:T.red,borderRadius:1,transition:"width .2s",marginBottom:1}}/>
-      {label}
+    <button key={key} onClick={()=>setTab(key)} style={{flex:1,background:tab===key?T.cardHi:"transparent",color:tab===key?T.text:T.faint,border:"none",borderRadius:10,padding:"9px 4px 8px",fontFamily:"'Bebas Neue'",fontSize:13,letterSpacing:1.5,cursor:"pointer",transition:"color .15s, background .15s",display:"flex",flexDirection:"column",alignItems:"center",gap:4,WebkitTapHighlightColor:"transparent",position:"relative"}}>
+      <span style={{display:"block",width:tab===key?24:0,height:2.5,background:T.red,borderRadius:2,transition:"width .25s cubic-bezier(.34,1.56,.64,1)",boxShadow:tab===key?`0 0 6px ${T.red}aa`:"none"}}/>
+      <span style={{lineHeight:1}}>{label}</span>
     </button>
   );
 
   return(
-    <div style={{minHeight:"100vh",background:T.bg,backgroundImage:T.bgGrad,color:T.text,fontFamily:"'Inter',sans-serif",maxWidth:600,margin:"0 auto"}}>
-      <style>{FONTS}{`*{box-sizing:border-box;margin:0;padding:0;-webkit-font-smoothing:antialiased;}html,body{background:${T.bg};}::-webkit-scrollbar{width:4px;height:4px;}::-webkit-scrollbar-thumb{background:${T.border};border-radius:2px;}input::placeholder{color:${T.faint}!important;}select option{background:${T.card};color:${T.text};}input[type=number]::-webkit-inner-spin-button{opacity:.15;}button:active{transform:scale(.98);}select{appearance:none;-webkit-appearance:none;background-image:url("data:image/svg+xml;charset=US-ASCII,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%2371717a' d='M6 9L2 5h8z'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 10px center;padding-right:30px!important;}body{overflow-x:hidden;}`}</style>
+    <div style={{minHeight:"100vh",background:T.bg,backgroundImage:`${T.bgGrad}, linear-gradient(rgba(255,255,255,.018) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,.018) 1px, transparent 1px)`,backgroundSize:"auto, 40px 40px, 40px 40px",backgroundAttachment:"fixed, fixed, fixed",color:T.text,fontFamily:"'Inter',sans-serif",maxWidth:600,margin:"0 auto",position:"relative"}}>
+      <style>{FONTS}{`
+*{box-sizing:border-box;margin:0;padding:0;-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility;}
+html,body{background:${T.bg};}
+body{overflow-x:hidden;}
+::-webkit-scrollbar{width:4px;height:4px;}
+::-webkit-scrollbar-thumb{background:${T.border};border-radius:2px;}
+::-webkit-scrollbar-thumb:hover{background:${T.borderHi};}
+::selection{background:${T.red}66;color:${T.text};}
+input::placeholder{color:${T.faint}!important;}
+input:focus,select:focus{border-color:${T.borderHi}!important;}
+select option{background:${T.card};color:${T.text};}
+input[type=number]::-webkit-inner-spin-button{opacity:.15;}
+button{transition:transform .12s ease,opacity .15s ease,background-color .15s ease,box-shadow .2s ease,border-color .15s ease;}
+button:active{transform:scale(.97);}
+button:disabled{cursor:not-allowed;}
+select{appearance:none;-webkit-appearance:none;background-image:url("data:image/svg+xml;charset=US-ASCII,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%2371717a' d='M6 9L2 5h8z'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 10px center;padding-right:30px!important;}
+
+@keyframes fadeIn{from{opacity:0;}to{opacity:1;}}
+@keyframes fadeSlideIn{from{opacity:0;transform:translateY(6px);}to{opacity:1;transform:translateY(0);}}
+@keyframes scaleIn{from{opacity:0;transform:scale(.94);}to{opacity:1;transform:scale(1);}}
+@keyframes pop{0%{transform:scale(.5);opacity:0;}80%{transform:scale(1.06);}100%{transform:scale(1);opacity:1;}}
+@keyframes barGrow{from{transform:scaleX(0);}to{transform:scaleX(1);}}
+@keyframes pulseRed{0%,100%{box-shadow:0 0 0 0 ${T.red}aa;opacity:1;}50%{box-shadow:0 0 0 5px ${T.red}00;opacity:.85;}}
+@keyframes pulseSoft{0%,100%{opacity:1;}50%{opacity:.55;}}
+@keyframes spin{to{transform:rotate(360deg);}}
+@keyframes slideUp{from{transform:translateY(100%);}to{transform:translateY(0);}}
+@keyframes accentSweep{from{background-position:200% 0;}to{background-position:-200% 0;}}
+@keyframes blinkCursor{0%,49%{opacity:1;}50%,100%{opacity:.2;}}
+
+.k-tab{animation:fadeSlideIn .26s ease backwards;}
+.k-row{animation:fadeSlideIn .25s ease backwards;}
+.k-pop{animation:pop .28s cubic-bezier(.34,1.56,.64,1) backwards;}
+.k-bar{transform-origin:left center;animation:barGrow .55s cubic-bezier(.2,.7,.2,1) backwards;}
+.k-spin{animation:spin 1.1s linear infinite;}
+.k-pulse-red{animation:pulseRed 1.4s ease-in-out infinite;}
+.k-pulse-soft{animation:pulseSoft 1.4s ease-in-out infinite;}
+.k-modal-bg{animation:fadeIn .18s ease;}
+.k-modal{animation:scaleIn .22s cubic-bezier(.2,.8,.2,1);}
+.k-sheet{animation:slideUp .26s cubic-bezier(.2,.8,.2,1);}
+.k-blink{animation:blinkCursor 1.1s steps(2) infinite;}
+
+[data-press]{cursor:pointer;}
+[data-press]:hover{transform:translateY(-1px);}
+[data-press]:active{transform:translateY(0) scale(.98);}
+
+@media (prefers-reduced-motion: reduce){
+*,*::before,*::after{animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important;}
+}
+`}</style>
 
       {timer&&<Timer onClose={()=>setTimer(false)}/>}
       {exModal&&<ExModal initial={exModal.mode==="edit"?exModal.data:null} onSave={d=>{if(exModal.mode==="edit")setExDB(p=>p.map((e,i)=>i===exModal.idx?{...e,...d}:e));else setExDB(p=>[...p,d]);}} onDelete={exModal.mode==="edit"?()=>setExDB(p=>p.filter((_,i)=>i!==exModal.idx)):null} onClose={()=>setExModal(null)}/>}
@@ -1570,17 +1618,24 @@ export default function App() {
       {/* HEADER */}
       <div style={{padding:"14px 16px 12px calc(16px + env(safe-area-inset-left, 0px))",paddingRight:"calc(16px + env(safe-area-inset-right, 0px))",display:"flex",justifyContent:"space-between",alignItems:"center",position:"sticky",top:0,background:T.bg+"ee",backdropFilter:"blur(10px)",zIndex:90,borderBottom:`1px solid ${T.border}`}}>
         <div>
-          <div style={{display:"flex",alignItems:"baseline",gap:6}}>
-            <div style={{fontFamily:"'Bebas Neue'",fontSize:30,letterSpacing:3,lineHeight:1,color:T.text}}>KILO</div>
-            <div style={{width:6,height:6,borderRadius:3,background:T.red,boxShadow:`0 0 8px ${T.red}88`}}/>
+          <div style={{display:"flex",alignItems:"center",gap:8}}>
+            <div style={{fontFamily:"'Bebas Neue'",fontSize:34,letterSpacing:5,lineHeight:1,color:T.text,textShadow:`0 0 24px ${T.red}33`}}>KILO</div>
+            <div className="k-pulse-red" style={{width:7,height:7,borderRadius:4,background:T.red}}/>
           </div>
-          <div style={{fontSize:10,color:T.faint,fontFamily:"'IBM Plex Mono'",marginTop:3,letterSpacing:.5,fontWeight:600}}>{todayLabel().toUpperCase()}</div>
+          <div style={{display:"flex",alignItems:"center",gap:6,marginTop:5}}>
+            <div style={{width:14,height:2,background:T.red,borderRadius:1}}/>
+            <div style={{fontSize:9,color:T.faint,fontFamily:"'IBM Plex Mono'",letterSpacing:1.2,fontWeight:700}}>{todayLabel().toUpperCase()}</div>
+          </div>
         </div>
         <div style={{display:"flex",gap:6,alignItems:"center"}}>
           <button onClick={()=>{if(Date.now()-lastPullAt.current<2000)return;reloadFromStorage();}} title="Récupérer depuis le cloud" style={{background:T.ghost,color:T.dim,border:`1px solid ${T.border}`,borderRadius:10,padding:"10px 11px",fontSize:14,cursor:"pointer",WebkitTapHighlightColor:"transparent"}}>↻</button>
-          <button onClick={doPush} title={dirty?"Changements à sauvegarder":"À jour"} disabled={pushStatus==="pushing"} style={{background:dirty?T.red+"22":T.ghost,color:pushStatus==="error"?T.red:pushStatus==="pushed"?T.green:dirty?T.red:T.dim,border:`1px solid ${dirty?T.red+"55":T.border}`,borderRadius:10,padding:"10px 11px",fontSize:14,cursor:pushStatus==="pushing"?"wait":"pointer",WebkitTapHighlightColor:"transparent",position:"relative",fontWeight:700,opacity:pushStatus==="pushing"?.6:1}}>
-            {pushStatus==="pushing"?"…":pushStatus==="pushed"?"✓":pushStatus==="error"?"⚠":"💾"}
-            {dirty&&pushStatus===null&&<span style={{position:"absolute",top:4,right:4,width:7,height:7,borderRadius:4,background:T.red,boxShadow:`0 0 6px ${T.red}aa`}}/>}
+          <button onClick={doPush} title={dirty?"Changements à sauvegarder":"À jour"} disabled={pushStatus==="pushing"} style={{background:dirty?T.red+"22":T.ghost,color:pushStatus==="error"?T.red:pushStatus==="pushed"?T.green:dirty?T.red:T.dim,border:`1px solid ${dirty?T.red+"55":T.border}`,borderRadius:10,padding:"10px 11px",fontSize:14,cursor:pushStatus==="pushing"?"wait":"pointer",WebkitTapHighlightColor:"transparent",position:"relative",fontWeight:700,opacity:pushStatus==="pushing"?.7:1,minWidth:42}}>
+            {pushStatus==="pushing"
+              ? <span className="k-spin" style={{display:"inline-block"}}>⟳</span>
+              : pushStatus==="pushed" ? <span className="k-pop" style={{display:"inline-block"}}>✓</span>
+              : pushStatus==="error" ? "⚠"
+              : "💾"}
+            {dirty&&pushStatus===null&&<span className="k-pulse-red" style={{position:"absolute",top:4,right:4,width:7,height:7,borderRadius:4,background:T.red}}/>}
           </button>
           {showBwEdit?(
             <div style={{display:"flex",gap:5,alignItems:"center"}}>
@@ -1599,23 +1654,28 @@ export default function App() {
 
         {/* ── SÉANCE ── */}
         {tab==="seance"&&(
-          <div>
+          <div key="seance" className="k-tab">
             {/* Hero card */}
             <div style={{background:T.cardHi,borderRadius:16,padding:"16px 18px",marginBottom:14,border:`1px solid ${T.border}`,position:"relative",overflow:"hidden",boxShadow:T.shadow}}>
               <div style={{position:"absolute",inset:0,background:`radial-gradient(circle at 100% 0%, ${T.red}22 0%, transparent 60%)`,pointerEvents:"none"}}/>
+              {/* Massive watermark weekday */}
+              <div aria-hidden style={{position:"absolute",right:-12,top:-8,fontFamily:"'Bebas Neue'",fontSize:120,color:T.text,opacity:.04,letterSpacing:-2,lineHeight:.85,pointerEvents:"none",userSelect:"none"}}>{todayWeekday().slice(0,3).toUpperCase()}</div>
               <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:todayPlan.length>0?12:0,position:"relative"}}>
                 <div style={{flex:1,minWidth:0}}>
-                  <div style={{fontFamily:"'Bebas Neue'",fontSize:13,letterSpacing:3,color:T.dim,marginBottom:2}}>SÉANCE DU JOUR</div>
-                  <div style={{fontFamily:"'Bebas Neue'",fontSize:32,letterSpacing:1,color:T.text,lineHeight:1}}>{todayWeekday().toUpperCase()}</div>
-                  <div style={{fontSize:13,color:T.dim,marginTop:6,fontWeight:600}}>
-                    {todayPlan.length>0?<><span style={{color:todayLogs.length===todayPlan.length?T.green:T.text,fontWeight:900,fontSize:18,fontFamily:"'IBM Plex Mono'"}}>{todayLogs.length}</span><span style={{color:T.faint}}>/{todayPlan.length}</span> validés</>:<span style={{color:T.amber}}>Repos · aucun plan</span>}
+                  <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:4}}>
+                    <div style={{width:8,height:2,background:T.red,borderRadius:1}}/>
+                    <div style={{fontFamily:"'Bebas Neue'",fontSize:12,letterSpacing:3,color:T.dim}}>SÉANCE DU JOUR</div>
+                  </div>
+                  <div style={{fontFamily:"'Bebas Neue'",fontSize:36,letterSpacing:1.5,color:T.text,lineHeight:1}}>{todayWeekday().toUpperCase()}</div>
+                  <div style={{fontSize:13,color:T.dim,marginTop:8,fontWeight:600}}>
+                    {todayPlan.length>0?<><span className="k-pop" style={{display:"inline-block",color:todayLogs.length===todayPlan.length?T.green:T.text,fontWeight:900,fontSize:20,fontFamily:"'IBM Plex Mono'"}}>{todayLogs.length}</span><span style={{color:T.faint}}>/{todayPlan.length}</span> validés</>:<span style={{color:T.amber}}>Repos · aucun plan</span>}
                   </div>
                 </div>
                 {todayPlan.length===0&&<button onClick={()=>setTab("plan")} style={btn(T.red,"#fff",{padding:"11px 16px",fontSize:13,boxShadow:`0 4px 12px ${T.red}55`})}>PLANIFIER →</button>}
               </div>
               {todayPlan.length>0&&(
                 <div style={{height:6,background:T.ghost,borderRadius:3,overflow:"hidden",position:"relative"}}>
-                  <div style={{width:`${Math.round(todayLogs.length/todayPlan.length*100)}%`,height:"100%",background:todayLogs.length===todayPlan.length?`linear-gradient(90deg, ${T.green}, #34d399)`:`linear-gradient(90deg, ${T.red}, #fbbf24)`,borderRadius:3,transition:"width .5s",boxShadow:`0 0 8px ${todayLogs.length===todayPlan.length?T.green:T.red}88`}}/>
+                  <div className="k-bar" style={{width:`${Math.round(todayLogs.length/todayPlan.length*100)}%`,height:"100%",background:todayLogs.length===todayPlan.length?`linear-gradient(90deg, ${T.green}, #34d399)`:`linear-gradient(90deg, ${T.red}, #fbbf24)`,borderRadius:3,transition:"width .5s",boxShadow:`0 0 8px ${todayLogs.length===todayPlan.length?T.green:T.red}88`}}/>
                 </div>
               )}
             </div>
@@ -1633,9 +1693,12 @@ export default function App() {
 
         {/* ── PLAN ── */}
         {tab==="plan"&&(
-          <div>
-            <div style={{display:"flex",alignItems:"baseline",justifyContent:"space-between",marginBottom:16}}>
-              <div style={{fontFamily:"'Bebas Neue'",fontSize:28,color:T.text,letterSpacing:1,lineHeight:1}}>PLANIFICATEUR</div>
+          <div key="plan" className="k-tab">
+            <div style={{display:"flex",alignItems:"baseline",justifyContent:"space-between",marginBottom:16,gap:10}}>
+              <div style={{display:"flex",alignItems:"center",gap:10}}>
+                <div style={{width:4,height:24,background:T.red,borderRadius:2,boxShadow:`0 0 8px ${T.red}66`}}/>
+                <div style={{fontFamily:"'Bebas Neue'",fontSize:30,color:T.text,letterSpacing:1.5,lineHeight:1}}>PLANIFICATEUR</div>
+              </div>
               <div style={{fontSize:11,color:T.faint,fontFamily:"'IBM Plex Mono'",fontWeight:700}}>{Object.keys(weekPlan).length} JOUR{Object.keys(weekPlan).length>1?"S":""}</div>
             </div>
             <Planner weekPlan={weekPlan} setWeekPlan={setWeekPlan} exDB={exDB} allLogs={logs} bw={bw}/>
@@ -1644,11 +1707,14 @@ export default function App() {
 
         {/* ── LOGS ── */}
         {tab==="logs"&&(
-          <div>
+          <div key="logs" className="k-tab">
             <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14,gap:8}}>
-              <div>
-                <div style={{fontFamily:"'Bebas Neue'",fontSize:28,color:T.text,letterSpacing:1,lineHeight:1}}>HISTORIQUE</div>
-                <div style={{fontSize:11,color:T.faint,fontFamily:"'IBM Plex Mono'",fontWeight:700,marginTop:3}}>{filteredLogs.length} ENTRÉE{filteredLogs.length>1?"S":""}</div>
+              <div style={{display:"flex",alignItems:"center",gap:10}}>
+                <div style={{width:4,height:32,background:T.amber,borderRadius:2,boxShadow:`0 0 8px ${T.amber}66`}}/>
+                <div>
+                  <div style={{fontFamily:"'Bebas Neue'",fontSize:30,color:T.text,letterSpacing:1.5,lineHeight:1}}>HISTORIQUE</div>
+                  <div style={{fontSize:10,color:T.faint,fontFamily:"'IBM Plex Mono'",fontWeight:700,marginTop:3,letterSpacing:1}}>{filteredLogs.length} ENTRÉE{filteredLogs.length>1?"S":""}</div>
+                </div>
               </div>
               <button onClick={()=>setLogAdd({defaultDate:todayFR()})} style={btn(T.green,"#fff",{padding:"11px 16px",fontSize:13,boxShadow:`0 4px 12px ${T.green}55`})}>+ AJOUTER</button>
             </div>
@@ -1698,7 +1764,7 @@ export default function App() {
                           const ex=exDB.find(e=>e.name===log.exo);
                           const tcc=tc(ex?.type||"Push");
                           return(
-                            <div key={i} style={{background:T.card,borderRadius:10,padding:"10px 12px",border:`1px solid ${T.border}`,position:"relative",overflow:"hidden"}}>
+                            <div key={i} className="k-row" style={{background:T.card,borderRadius:10,padding:"10px 12px",border:`1px solid ${T.border}`,position:"relative",overflow:"hidden",animationDelay:`${i*30}ms`}}>
                               <div style={{position:"absolute",left:0,top:0,bottom:0,width:3,background:tcc.grad}}/>
                               <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:6,gap:8,paddingLeft:6}}>
                                 <div style={{flex:1,minWidth:0}}>
@@ -1727,19 +1793,25 @@ export default function App() {
 
         {/* ── STATS ── */}
         {tab==="stats"&&(
-          <div>
-            <div style={{fontFamily:"'Bebas Neue'",fontSize:28,color:T.text,letterSpacing:1,lineHeight:1,marginBottom:16}}>STATISTIQUES</div>
+          <div key="stats" className="k-tab">
+            <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:16}}>
+              <div style={{width:4,height:24,background:T.green,borderRadius:2,boxShadow:`0 0 8px ${T.green}66`}}/>
+              <div style={{fontFamily:"'Bebas Neue'",fontSize:30,color:T.text,letterSpacing:1.5,lineHeight:1}}>STATISTIQUES</div>
+            </div>
             <Stats logs={logs} exDB={exDB}/>
           </div>
         )}
 
         {/* ── EXOS ── */}
         {tab==="exos"&&(
-          <div>
+          <div key="exos" className="k-tab">
             <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14,gap:8}}>
-              <div>
-                <div style={{fontFamily:"'Bebas Neue'",fontSize:28,color:T.text,letterSpacing:1,lineHeight:1}}>EXERCICES</div>
-                <div style={{fontSize:11,color:T.faint,fontFamily:"'IBM Plex Mono'",fontWeight:700,marginTop:3}}>{filteredExDB.length} EN BASE</div>
+              <div style={{display:"flex",alignItems:"center",gap:10}}>
+                <div style={{width:4,height:32,background:T.purple,borderRadius:2,boxShadow:`0 0 8px ${T.purple}66`}}/>
+                <div>
+                  <div style={{fontFamily:"'Bebas Neue'",fontSize:30,color:T.text,letterSpacing:1.5,lineHeight:1}}>EXERCICES</div>
+                  <div style={{fontSize:10,color:T.faint,fontFamily:"'IBM Plex Mono'",fontWeight:700,marginTop:3,letterSpacing:1}}>{filteredExDB.length} EN BASE</div>
+                </div>
               </div>
               <button onClick={()=>setExModal({mode:"add"})} style={btn(T.red,"#fff",{padding:"11px 16px",fontSize:13,boxShadow:`0 4px 12px ${T.red}55`})}>+ NOUVEAU</button>
             </div>
