@@ -20,22 +20,28 @@ export function getLegacyDeviceId() {
 }
 
 async function supabaseFetch(path, options = {}) {
+  const { headers: callerHeaders, ...rest } = options
   const res = await fetch(`${SUPABASE_URL}/rest/v1/${path}`, {
+    ...rest,
     headers: {
       'apikey': SUPABASE_ANON_KEY,
       'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
       'Content-Type': 'application/json',
       'Prefer': 'return=representation',
-      ...options.headers,
+      ...(callerHeaders || {}),
     },
-    ...options,
   })
   if (!res.ok && res.status !== 404) {
     const err = await res.text()
     throw new Error(`Supabase error ${res.status}: ${err}`)
   }
   if (res.status === 204 || res.status === 404) return null
-  return res.json()
+  // DELETE with return=minimal returns empty body → don't try to parse
+  const ct = res.headers.get('content-type') || ''
+  if (!ct.includes('application/json')) return null
+  const text = await res.text()
+  if (!text) return null
+  try { return JSON.parse(text) } catch { return null }
 }
 
 function readLocal() {
