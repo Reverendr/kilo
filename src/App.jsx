@@ -680,22 +680,24 @@ function Planner({weekPlan, setWeekPlan, exDB, allLogs, bw}) {
       <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
         {muscles.map(m=><button key={m} onClick={()=>setMuscleFilter(m)} style={{background:muscleFilter===m?T.text:T.ghost,color:muscleFilter===m?T.bg:T.textDim,border:"none",borderRadius:10,padding:"7px 13px",fontSize:11,cursor:"pointer",fontFamily:"'IBM Plex Mono'",fontWeight:800,letterSpacing:.5,WebkitTapHighlightColor:"transparent"}}>{m.toUpperCase()}</button>)}
       </div>
-      <div style={{display:"flex",flexDirection:"column",gap:7,maxHeight:480,overflowY:"auto"}}>
+      <div style={{display:"flex",flexDirection:"column",gap:8,maxHeight:480,overflowY:"auto",paddingRight:2}}>
         {filteredEx.map(ex=>{
           const s=exStats[ex.name];
           const tcc=tc(ex.type);
+          const onPick=()=>{setPickedEx(ex);const sug=suggestObjective(ex.name,exDB,allLogs,null);setForm({objPoids:sug.objPoids?String(sug.objPoids):"",objReps:String(sug.objReps),objSeries:String(sug.objSeries)});setStep("confirm");};
           return(
-            <button key={ex.name} onClick={()=>{setPickedEx(ex);const sug=suggestObjective(ex.name,exDB,allLogs,null);setForm({objPoids:sug.objPoids?String(sug.objPoids):"",objReps:String(sug.objReps),objSeries:String(sug.objSeries)});setStep("confirm");}} style={{background:T.card,border:`1px solid ${T.border}`,borderRadius:12,padding:"12px 14px",cursor:"pointer",textAlign:"left",display:"flex",justifyContent:"space-between",alignItems:"center",gap:10,position:"relative",overflow:"hidden",WebkitTapHighlightColor:"transparent",fontFamily:"'Inter',sans-serif"}}>
-              <div style={{position:"absolute",left:0,top:0,bottom:0,width:3,background:tcc.grad}}/>
-              <div style={{flex:1,minWidth:0,paddingLeft:6}}>
-                <div style={{fontWeight:800,fontSize:14,color:T.text,letterSpacing:-.2}}>{ex.name}</div>
-                <div style={{fontSize:11,color:T.dim,marginTop:3,fontWeight:500}}>{ex.muscle} {ex.mult>1?`· ×${ex.mult} bras`:""}{ex.barAdd>0?` · +${ex.barAdd}kg`:""}</div>
+            <div key={ex.name} role="button" tabIndex={0} onClick={onPick} onKeyDown={e=>{if(e.key==="Enter"||e.key===" "){e.preventDefault();onPick();}}}
+              style={{background:T.card,border:`1px solid ${T.border}`,borderRadius:12,padding:"12px 14px 12px 18px",cursor:"pointer",position:"relative",WebkitTapHighlightColor:"transparent",display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:10,lineHeight:1.3}}>
+              <div style={{position:"absolute",left:0,top:6,bottom:6,width:3,background:tcc.grad,borderRadius:2}}/>
+              <div style={{flex:1,minWidth:0}}>
+                <div style={{fontWeight:800,fontSize:14,color:T.text,letterSpacing:-.2,lineHeight:1.25}}>{ex.name}</div>
+                <div style={{fontSize:11,color:T.dim,marginTop:4,fontWeight:500,lineHeight:1.3}}>{ex.muscle}{ex.mult>1?` · ×${ex.mult} bras`:""}{ex.barAdd>0?` · +${ex.barAdd}kg`:""}</div>
               </div>
-              <div style={{textAlign:"right",fontSize:11,fontFamily:"'IBM Plex Mono'",color:T.dim,whiteSpace:"nowrap"}}>
+              <div style={{textAlign:"right",fontSize:11,fontFamily:"'IBM Plex Mono'",color:T.dim,whiteSpace:"nowrap",lineHeight:1.3,flexShrink:0}}>
                 {s.bestStr!=="—"&&<div style={{color:T.green,fontWeight:800}}>{s.bestStr}</div>}
                 {s.nSessions>0&&<div style={{fontWeight:600,marginTop:2}}>{s.nSessions} séances</div>}
               </div>
-            </button>
+            </div>
           );
         })}
       </div>
