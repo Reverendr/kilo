@@ -425,6 +425,24 @@ const T = {
 const btn = (bg="#ef4444",fg="#fff",extra={}) => ({background:bg,color:fg,border:"none",borderRadius:12,padding:"13px 20px",fontFamily:"'Inter',sans-serif",fontSize:14,cursor:"pointer",fontWeight:700,letterSpacing:.2,transition:"transform .1s, opacity .15s, background .15s",WebkitTapHighlightColor:"transparent",...extra});
 const ghostBtn = (extra={}) => ({background:"transparent",color:T.dim,border:`1.5px solid ${T.border}`,borderRadius:12,padding:"12px 18px",fontFamily:"'Inter',sans-serif",fontSize:14,cursor:"pointer",fontWeight:600,transition:"all .15s",WebkitTapHighlightColor:"transparent",...extra});
 
+/* ─── NAV ICONS ──────────────────────────────────────────────────────────── */
+function NavIcon({name, size=24}) {
+  const common = {width:size,height:size,viewBox:"0 0 24 24",fill:"none",stroke:"currentColor",strokeWidth:"1.9",strokeLinecap:"round",strokeLinejoin:"round",style:{flexShrink:0}};
+  switch(name){
+    case "seance":  // dumbbell
+      return(<svg {...common}><rect x="2.5" y="8.5" width="3" height="7" rx="1.2"/><rect x="18.5" y="8.5" width="3" height="7" rx="1.2"/><path d="M5.5 12h2"/><path d="M16.5 12h2"/><rect x="7.5" y="9.5" width="9" height="5" rx="1.2"/></svg>);
+    case "plan":    // calendar
+      return(<svg {...common}><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18"/><path d="M8 3v4"/><path d="M16 3v4"/><circle cx="8" cy="14" r=".7" fill="currentColor" stroke="none"/><circle cx="12" cy="14" r=".7" fill="currentColor" stroke="none"/><circle cx="16" cy="14" r=".7" fill="currentColor" stroke="none"/></svg>);
+    case "logs":    // clock / history
+      return(<svg {...common}><circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15.5 14"/></svg>);
+    case "stats":   // bar chart
+      return(<svg {...common}><path d="M4 21V14"/><path d="M11 21V4"/><path d="M18 21V10"/><path d="M3 21h18"/></svg>);
+    case "exos":    // grid
+      return(<svg {...common}><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>);
+    default: return null;
+  }
+}
+
 /* ─── CONFIRM MODAL (réutilisable pour toutes les suppressions) ──────────── */
 function ConfirmModal({title="Confirmer",message,confirmLabel="Supprimer",cancelLabel="Annuler",danger=true,onConfirm,onClose}) {
   return(
@@ -1550,12 +1568,39 @@ export default function App() {
 
   const typeColors=Object.entries(TYPE_COLORS);
 
-  const navBtn=(key,label)=>(
-    <button key={key} onClick={()=>setTab(key)} style={{flex:1,background:tab===key?T.cardHi:"transparent",color:tab===key?T.text:T.faint,border:"none",borderRadius:10,padding:"9px 4px 8px",fontFamily:"'Bebas Neue'",fontSize:13,letterSpacing:1.5,cursor:"pointer",transition:"color .15s, background .15s",display:"flex",flexDirection:"column",alignItems:"center",gap:4,WebkitTapHighlightColor:"transparent",position:"relative"}}>
-      <span style={{display:"block",width:tab===key?24:0,height:2.5,background:T.red,borderRadius:2,transition:"width .25s cubic-bezier(.34,1.56,.64,1)",boxShadow:tab===key?`0 0 6px ${T.red}aa`:"none"}}/>
-      <span style={{lineHeight:1}}>{label}</span>
-    </button>
-  );
+  const navBtn=(key,label)=>{
+    const active=tab===key;
+    return(
+      <button key={key} onClick={()=>setTab(key)} style={{flex:1,background:"none",color:active?T.text:T.faint,border:"none",padding:"6px 2px 4px",fontFamily:"'Inter',sans-serif",fontSize:10,fontWeight:700,letterSpacing:.6,cursor:"pointer",transition:"color .2s",display:"flex",flexDirection:"column",alignItems:"center",gap:5,WebkitTapHighlightColor:"transparent",position:"relative",minHeight:54}}>
+        <div style={{position:"relative",display:"flex",alignItems:"center",justifyContent:"center",width:46,height:32,borderRadius:14,background:active?`linear-gradient(180deg, ${T.red}33, ${T.red}11)`:"transparent",transition:"background .25s, transform .2s cubic-bezier(.34,1.56,.64,1)",transform:active?"scale(1.0)":"scale(1)"}}>
+          {active&&<span style={{position:"absolute",inset:0,borderRadius:14,border:`1px solid ${T.red}55`,boxShadow:`0 4px 14px -2px ${T.red}66, inset 0 1px 0 ${T.red}33`,pointerEvents:"none"}}/>}
+          <span style={{color:active?T.red:T.faint,transition:"color .2s, transform .2s",transform:active?"translateY(-1px)":"none"}}><NavIcon name={key} size={22}/></span>
+        </div>
+        <span style={{lineHeight:1,opacity:active?1:.65,fontSize:9.5,letterSpacing:.8,textTransform:"uppercase"}}>{label}</span>
+      </button>
+    );
+  };
+
+  // ── Swipe gestures between tabs (mobile) ───────────────────────────────
+  const TABS_ORDER=useMemo(()=>["seance","plan","logs","stats","exos"],[]);
+  const swipeRef=useRef({x:0,y:0,t:0,active:false});
+  const onSwipeStart=(e)=>{
+    const t=e.touches[0];
+    const tag=e.target?.tagName;
+    swipeRef.current={x:t.clientX,y:t.clientY,t:Date.now(),active:!/^(INPUT|SELECT|TEXTAREA)$/.test(tag||"")};
+  };
+  const onSwipeEnd=(e)=>{
+    if(!swipeRef.current.active)return;
+    const t=e.changedTouches[0];
+    const dx=t.clientX-swipeRef.current.x;
+    const dy=t.clientY-swipeRef.current.y;
+    const dt=Date.now()-swipeRef.current.t;
+    if(Math.abs(dx)>70&&Math.abs(dx)>Math.abs(dy)*1.8&&dt<500){
+      const idx=TABS_ORDER.indexOf(tab);
+      if(dx<0&&idx<TABS_ORDER.length-1) setTab(TABS_ORDER[idx+1]);
+      else if(dx>0&&idx>0) setTab(TABS_ORDER[idx-1]);
+    }
+  };
 
   return(
     <div style={{minHeight:"100vh",background:T.bg,backgroundImage:`${T.bgGrad}, linear-gradient(rgba(255,255,255,.018) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,.018) 1px, transparent 1px)`,backgroundSize:"auto, 40px 40px, 40px 40px",backgroundAttachment:"fixed, fixed, fixed",color:T.text,fontFamily:"'Inter',sans-serif",maxWidth:600,margin:"0 auto",position:"relative"}}>
@@ -1615,8 +1660,8 @@ select{appearance:none;-webkit-appearance:none;background-image:url("data:image/
       {logAdd&&<LogAddModal defaultDate={logAdd.defaultDate} exDB={exDB} onSave={addLog} onClose={()=>setLogAdd(null)} bw={bw}/>}
       {confirm&&<ConfirmModal title={confirm.title} message={confirm.message} confirmLabel={confirm.confirmLabel} onConfirm={confirm.onConfirm} onClose={()=>setConfirm(null)}/>}
 
-      {/* HEADER */}
-      <div style={{padding:"14px 16px 12px calc(16px + env(safe-area-inset-left, 0px))",paddingRight:"calc(16px + env(safe-area-inset-right, 0px))",display:"flex",justifyContent:"space-between",alignItems:"center",position:"sticky",top:0,background:T.bg+"ee",backdropFilter:"blur(10px)",zIndex:90,borderBottom:`1px solid ${T.border}`}}>
+      {/* HEADER — glass */}
+      <div style={{padding:"14px 16px 12px calc(16px + env(safe-area-inset-left, 0px))",paddingRight:"calc(16px + env(safe-area-inset-right, 0px))",display:"flex",justifyContent:"space-between",alignItems:"center",position:"sticky",top:0,background:"rgba(8,8,12,0.55)",WebkitBackdropFilter:"blur(20px) saturate(180%)",backdropFilter:"blur(20px) saturate(180%)",zIndex:90,borderBottom:`1px solid rgba(255,255,255,.04)`,boxShadow:"0 1px 0 rgba(255,255,255,.02)"}}>
         <div>
           <div style={{display:"flex",alignItems:"center",gap:8}}>
             <div style={{fontFamily:"'Bebas Neue'",fontSize:34,letterSpacing:5,lineHeight:1,color:T.text,textShadow:`0 0 24px ${T.red}33`}}>KILO</div>
@@ -1649,14 +1694,19 @@ select{appearance:none;-webkit-appearance:none;background-image:url("data:image/
         </div>
       </div>
 
+      {/* SWIPE INDICATOR — minuscule rangée de pastilles sous le header */}
+      <div style={{display:"flex",justifyContent:"center",gap:5,padding:"8px 0 0"}}>
+        {TABS_ORDER.map(k=><span key={k} style={{width:tab===k?16:5,height:3,borderRadius:2,background:tab===k?T.red:T.borderHi,boxShadow:tab===k?`0 0 6px ${T.red}88`:"none",transition:"width .25s cubic-bezier(.34,1.56,.64,1), background .2s"}}/>)}
+      </div>
+
       {/* CONTENT */}
-      <div style={{paddingTop:16,paddingLeft:"calc(14px + env(safe-area-inset-left, 0px))",paddingRight:"calc(14px + env(safe-area-inset-right, 0px))",paddingBottom:"calc(96px + env(safe-area-inset-bottom, 0px))"}}>
+      <div onTouchStart={onSwipeStart} onTouchEnd={onSwipeEnd} style={{paddingTop:16,paddingLeft:"calc(14px + env(safe-area-inset-left, 0px))",paddingRight:"calc(14px + env(safe-area-inset-right, 0px))",paddingBottom:"calc(108px + env(safe-area-inset-bottom, 0px))"}}>
 
         {/* ── SÉANCE ── */}
         {tab==="seance"&&(
           <div key="seance" className="k-tab">
-            {/* Hero card */}
-            <div style={{background:T.cardHi,borderRadius:16,padding:"16px 18px",marginBottom:14,border:`1px solid ${T.border}`,position:"relative",overflow:"hidden",boxShadow:T.shadow}}>
+            {/* Hero card — glass */}
+            <div style={{background:"linear-gradient(180deg, rgba(28,28,34,.85), rgba(20,20,24,.6))",WebkitBackdropFilter:"blur(20px) saturate(160%)",backdropFilter:"blur(20px) saturate(160%)",borderRadius:18,padding:"18px 20px",marginBottom:14,border:`1px solid rgba(255,255,255,.07)`,position:"relative",overflow:"hidden",boxShadow:`0 8px 28px rgba(0,0,0,.35), inset 0 1px 0 rgba(255,255,255,.04)`}}>
               <div style={{position:"absolute",inset:0,background:`radial-gradient(circle at 100% 0%, ${T.red}22 0%, transparent 60%)`,pointerEvents:"none"}}/>
               {/* Massive watermark weekday */}
               <div aria-hidden style={{position:"absolute",right:-12,top:-8,fontFamily:"'Bebas Neue'",fontSize:120,color:T.text,opacity:.04,letterSpacing:-2,lineHeight:.85,pointerEvents:"none",userSelect:"none"}}>{todayWeekday().slice(0,3).toUpperCase()}</div>
@@ -1848,9 +1898,13 @@ select{appearance:none;-webkit-appearance:none;background-image:url("data:image/
         )}
       </div>
 
-      {/* BOTTOM NAV */}
-      <div style={{position:"fixed",bottom:0,left:"50%",transform:"translateX(-50%)",width:"100%",maxWidth:600,background:T.card+"f5",backdropFilter:"blur(12px)",borderTop:`1px solid ${T.border}`,display:"flex",zIndex:90,padding:"6px 6px",paddingLeft:"calc(6px + env(safe-area-inset-left, 0px))",paddingRight:"calc(6px + env(safe-area-inset-right, 0px))",paddingBottom:"calc(6px + env(safe-area-inset-bottom, 0px))",gap:2}}>
-        {[["seance","SÉANCE"],["plan","PLAN"],["logs","LOGS"],["stats","STATS"],["exos","EXOS"]].map(([k,l])=>navBtn(k,l))}
+      {/* BOTTOM NAV — glass tab bar */}
+      <div style={{position:"fixed",bottom:0,left:"50%",transform:"translateX(-50%)",width:"100%",maxWidth:600,zIndex:90,pointerEvents:"none",paddingLeft:"calc(8px + env(safe-area-inset-left, 0px))",paddingRight:"calc(8px + env(safe-area-inset-right, 0px))",paddingBottom:"calc(8px + env(safe-area-inset-bottom, 0px))"}}>
+        <div style={{position:"relative",pointerEvents:"auto",background:"rgba(20,20,24,0.55)",WebkitBackdropFilter:"blur(28px) saturate(180%)",backdropFilter:"blur(28px) saturate(180%)",border:`1px solid rgba(255,255,255,.06)`,borderRadius:22,display:"flex",padding:"8px 6px 6px",gap:2,boxShadow:`0 8px 32px rgba(0,0,0,.45), 0 0 0 1px rgba(0,0,0,.4), inset 0 1px 0 rgba(255,255,255,.04)`}}>
+          {/* Top accent gradient line */}
+          <div style={{position:"absolute",left:"15%",right:"15%",top:0,height:1,background:`linear-gradient(90deg, transparent, ${T.red}88, transparent)`,pointerEvents:"none"}}/>
+          {[["seance","Séance"],["plan","Plan"],["logs","Logs"],["stats","Stats"],["exos","Exos"]].map(([k,l])=>navBtn(k,l))}
+        </div>
       </div>
     </div>
   );
