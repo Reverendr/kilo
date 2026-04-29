@@ -11,12 +11,13 @@ const TYPE_COLORS = {
   Pull:    { bg: "#10b981", soft: "#10b9811f", glow: "#10b98166", grad: "linear-gradient(135deg, #34d399 0%, #059669 100%)", label: "Pull" },
   Legs:    { bg: "#f59e0b", soft: "#f59e0b1f", glow: "#f59e0b66", grad: "linear-gradient(135deg, #fbbf24 0%, #d97706 100%)", label: "Jambes" },
   Gainage: { bg: "#a855f7", soft: "#a855f71f", glow: "#a855f766", grad: "linear-gradient(135deg, #c084fc 0%, #9333ea 100%)", label: "Gainage" },
+  Cardio:  { bg: "#06b6d4", soft: "#06b6d41f", glow: "#06b6d466", grad: "linear-gradient(135deg, #22d3ee 0%, #0891b2 100%)", label: "Cardio" },
 };
 const tc = (type) => TYPE_COLORS[type] || { bg: "#64748b", soft: "#64748b1f", glow: "#64748b66", grad: "linear-gradient(135deg, #94a3b8, #475569)", label: type };
 
 /* ─── MUSCLE GROUPS — simplified, logical ───────────────────────────────── */
 // Muscles réels, pas zones anatomiques floues
-const MUSCLE_GROUPS = ["Pectoraux","Épaules","Triceps","Dos","Biceps","Lombaires","Quadriceps","Ischios","Fessiers","Mollets","Abdos","Autre"];
+const MUSCLE_GROUPS = ["Pectoraux","Épaules","Triceps","Dos","Biceps","Lombaires","Quadriceps","Ischios","Fessiers","Mollets","Abdos","Cardio","Autre"];
 
 /* ─── EXERCISE DATABASE ──────────────────────────────────────────────────── */
 const INIT_EX = [
@@ -69,6 +70,15 @@ const INIT_EX = [
   {name:"Soulevé ter.",                muscle:"Ischios",    type:"Legs", mult:1, barAdd:20},
   {name:"Mollets machine",             muscle:"Mollets",    type:"Legs", mult:1, barAdd:0},
   {name:"Gainage au sol",              muscle:"Abdos",      type:"Gainage", mult:1, barAdd:0},
+  {name:"Course",                      muscle:"Cardio",     type:"Cardio", isCardio:true, mult:1, barAdd:0},
+  {name:"Vélo",                        muscle:"Cardio",     type:"Cardio", isCardio:true, mult:1, barAdd:0},
+  {name:"Vélo elliptique",             muscle:"Cardio",     type:"Cardio", isCardio:true, mult:1, barAdd:0},
+  {name:"Rameur",                      muscle:"Cardio",     type:"Cardio", isCardio:true, mult:1, barAdd:0},
+  {name:"Marche",                      muscle:"Cardio",     type:"Cardio", isCardio:true, mult:1, barAdd:0},
+  {name:"HIIT",                        muscle:"Cardio",     type:"Cardio", isCardio:true, mult:1, barAdd:0},
+  {name:"Corde à sauter",              muscle:"Cardio",     type:"Cardio", isCardio:true, mult:1, barAdd:0},
+  {name:"Stairmaster",                 muscle:"Cardio",     type:"Cardio", isCardio:true, mult:1, barAdd:0},
+  {name:"Natation",                    muscle:"Cardio",     type:"Cardio", isCardio:true, mult:1, barAdd:0},
 ];
 
 /* ─── DAYS OF WEEK ───────────────────────────────────────────────────────── */
@@ -124,7 +134,25 @@ const realW = (poids, ex, bw=0) => {
   const base = ex.useBodyweight ? (pf(poids) + bw) : pf(poids);
   return base * ex.mult + ex.barAdd;
 };
-const calcVol = (series, ex, bw=0) => series.reduce((s,r) => s + realW(r.poids,ex,bw)*(pf(r.reps)||0), 0);
+const calcVol = (series, ex, bw=0) => {
+  if (ex?.isCardio) return 0;
+  return (series||[]).reduce((s,r) => s + realW(r.poids,ex,bw)*(pf(r.reps)||0), 0);
+};
+// Best stat for cardio: longest distance ever logged for this exo (or longest duration if no distance)
+const bestCardio = (logs, exoName) => {
+  let best = null;
+  for (const l of logs) {
+    if (l.exo !== exoName) continue;
+    const d = pf(l.distance), t = pf(l.duration);
+    const score = d > 0 ? d*1000 : t;
+    if (!best || score > best.score) best = {distance:d, duration:t, score};
+  }
+  return best;
+};
+const cardioStr = log => {
+  const d = pf(log.duration), k = pf(log.distance);
+  return [d>0?`${d}min`:null, k>0?`${k}km`:null].filter(Boolean).join(" · ") || "—";
+};
 const frSort = (a, b) => { const [da,ma,ya]=a.split("/").map(Number),[db,mb,yb]=b.split("/").map(Number); return new Date(ya,ma-1,da)-new Date(yb,mb-1,db); };
 const todayFR = () => new Date().toLocaleDateString("fr-FR");
 const todayWeekday = () => { const w=new Date().toLocaleDateString("fr-FR",{weekday:"long"}); return w[0].toUpperCase()+w.slice(1); };
@@ -141,11 +169,12 @@ const isoWeekKey = (d=new Date()) => {
   return `${year}-W${String(weekNo).padStart(2,'0')}`;
 };
 
-// Best ever single set for an exercise — max(poids × reps). Returns {poids,reps} or null.
+// Best ever single set for a strength exercise — max(poids × reps). Returns {poids,reps} or null.
 const bestPerf = (logs, exoName) => {
   let best = null;
   for (const l of logs) {
     if (l.exo !== exoName) continue;
+    if (!l.series) continue;
     for (const s of l.series) {
       const p = pf(s.poids), r = pf(s.reps);
       const score = p*r;
@@ -194,10 +223,18 @@ const stepFor = (exoName, exDB, allLogs) => {
 };
 
 // Suggest the next objective for an exo based on the last 1-2 sessions vs the previously planned target.
-// Returns {objPoids, objReps, objSeries}.
+// Returns {objPoids, objReps, objSeries} for strength or {objDuration, objDistance} for cardio.
 const suggestObjective = (exoName, exDB, allLogs, prevPlan) => {
   const ex = exDB.find(e=>e.name===exoName);
   const exLogs = allLogs.filter(l=>l.exo===exoName).sort((a,b)=>frSort(b.date,a.date));
+  if (ex?.isCardio) {
+    if (exLogs.length === 0) {
+      const def = ex.name==="Marche"?{d:45,k:5}:ex.name==="HIIT"?{d:20,k:0}:ex.name==="Corde à sauter"?{d:15,k:0}:ex.name==="Natation"?{d:30,k:1}:{d:30,k:5};
+      return { objDuration: pf(prevPlan?.objDuration)||def.d, objDistance: pf(prevPlan?.objDistance)||def.k };
+    }
+    const last = exLogs[0];
+    return { objDuration: pf(last.duration)||pf(prevPlan?.objDuration)||30, objDistance: pf(last.distance)||pf(prevPlan?.objDistance)||0 };
+  }
   if (!ex || exLogs.length === 0) return { objPoids: 0, objReps: 8, objSeries: 3 };
   const last = exLogs[0];
   const prev = exLogs[1] || null;
@@ -489,9 +526,106 @@ function Timer({onClose}) {
   );
 }
 
+/* ─── CARDIO CARD (séance) ───────────────────────────────────────────────── */
+function CardioCard({plan, ex, onLog, todayLogs, allLogs}) {
+  const tcol = tc("Cardio");
+  const col = tcol.bg;
+  const [open,setOpen]=useState(false);
+  const [duration,setDuration]=useState(plan.objDuration?String(plan.objDuration):"");
+  const [distance,setDistance]=useState(plan.objDistance?String(plan.objDistance):"");
+  const [note,setNote]=useState("");
+
+  const exLogs = allLogs.filter(l=>l.exo===plan.exo).sort((a,b)=>frSort(b.date,a.date));
+  const last = exLogs[0];
+  const lastStr = last ? cardioStr(last) : "—";
+  const best = bestCardio(allLogs, plan.exo);
+  const bestStr = best ? (best.distance>0?`${best.distance.toFixed(1)}km`:`${best.duration}min`) : "—";
+  const totalDur = exLogs.reduce((s,l)=>s+pf(l.duration),0);
+  const totalDist = exLogs.reduce((s,l)=>s+pf(l.distance),0);
+  const alreadyLogged = todayLogs.some(l=>l.exo===plan.exo);
+  const filled = pf(duration)>0 || pf(distance)>0;
+  const pace = pf(distance)>0 && pf(duration)>0 ? (pf(distance)*60/pf(duration)).toFixed(1) : null;
+
+  const doLog = () => {
+    if(!filled) return;
+    onLog({date:todayFR(),exo:plan.exo,muscle:"Cardio",type:"Cardio",duration:pf(duration),distance:pf(distance),series:[],volume:0,note,mult:1,barAdd:0,isCardio:true,ts:Date.now()});
+    setOpen(false);
+  };
+
+  if(!open) return(
+    <button onClick={()=>setOpen(true)} style={{background:alreadyLogged?T.card:T.cardHi,borderRadius:14,padding:"14px 16px",cursor:"pointer",display:"flex",justifyContent:"space-between",alignItems:"center",border:`1px solid ${alreadyLogged?T.green+"44":T.border}`,marginBottom:10,width:"100%",textAlign:"left",position:"relative",overflow:"hidden",WebkitTapHighlightColor:"transparent",fontFamily:"'Inter',sans-serif"}}>
+      <div style={{position:"absolute",left:0,top:0,bottom:0,width:4,background:alreadyLogged?T.green:tcol.grad}}/>
+      <div style={{flex:1,paddingLeft:6,minWidth:0}}>
+        <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:4,flexWrap:"wrap"}}>
+          <span style={{fontWeight:800,fontSize:16,color:T.text,letterSpacing:-.2}}>{plan.exo}</span>
+          {alreadyLogged&&<span style={{fontSize:10,background:T.green+"22",color:T.green,borderRadius:6,padding:"2px 7px",fontWeight:800,letterSpacing:.5}}>VALIDÉ</span>}
+        </div>
+        <div style={{fontSize:13,color:T.dim,fontFamily:"'IBM Plex Mono'",fontWeight:600}}>
+          <span style={{color:col}}>{plan.objDuration?`${plan.objDuration}min`:""}</span>
+          {plan.objDistance>0&&<><span style={{margin:"0 6px",color:T.faint}}>·</span><span style={{color:col}}>{plan.objDistance}km</span></>}
+        </div>
+      </div>
+      <span style={{color:T.faint,fontSize:24,paddingLeft:8,fontWeight:300}}>›</span>
+    </button>
+  );
+
+  return(
+    <div style={{background:T.cardHi,borderRadius:16,marginBottom:10,border:`1px solid ${T.border}`,overflow:"hidden",boxShadow:T.shadow,position:"relative"}}>
+      <div style={{height:4,background:tcol.grad}}/>
+      <div style={{padding:"16px 16px 4px",display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:10}}>
+        <div style={{flex:1,minWidth:0}}>
+          <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:8,flexWrap:"wrap"}}>
+            <span style={{fontWeight:900,fontSize:18,color:T.text,letterSpacing:-.3}}>{plan.exo}</span>
+            <span style={{fontSize:10,background:tcol.soft,color:col,borderRadius:6,padding:"3px 8px",fontFamily:"'IBM Plex Mono'",fontWeight:800,letterSpacing:.5}}>CARDIO</span>
+          </div>
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:6,marginBottom:14}}>
+            {[
+              {l:"DERNIÈRE",v:lastStr,c:T.text},
+              {l:"OBJECTIF",v:[plan.objDuration?`${plan.objDuration}min`:null,plan.objDistance?`${plan.objDistance}km`:null].filter(Boolean).join(" · ")||"—",c:col},
+              {l:"MEILLEURE",v:bestStr,c:T.green},
+              {l:"TOTAL",v:totalDur>0?`${(totalDur/60).toFixed(1)}h${totalDist>0?` · ${totalDist.toFixed(0)}km`:""}`:"—",c:T.amber},
+            ].map(({l,v,c})=>(
+              <div key={l} style={{background:T.card2,borderRadius:10,padding:"8px 10px",border:`1px solid ${T.border}`}}>
+                <div style={{fontSize:9,color:T.faint,fontFamily:"'IBM Plex Mono'",letterSpacing:1.2,marginBottom:3,fontWeight:700}}>{l}</div>
+                <div style={{fontSize:13,fontFamily:"'IBM Plex Mono'",color:c,fontWeight:800,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{v}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+        <button onClick={()=>setOpen(false)} style={{background:T.ghost,border:"none",color:T.dim,cursor:"pointer",fontSize:18,padding:"8px 10px",borderRadius:10,WebkitTapHighlightColor:"transparent"}}>✕</button>
+      </div>
+
+      <div style={{padding:"0 16px 16px"}}>
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:12}}>
+          <div>
+            <label style={T.lbl}>DURÉE (MIN)</label>
+            <input type="number" inputMode="numeric" step="1" value={duration} onChange={e=>setDuration(e.target.value)} placeholder={String(plan.objDuration||0)}
+              style={{...T.inp,fontSize:24,fontWeight:900,textAlign:"center",color:T.text,padding:"16px 4px"}}/>
+          </div>
+          <div>
+            <label style={T.lbl}>DISTANCE (KM)</label>
+            <input type="number" inputMode="decimal" step="0.1" value={distance} onChange={e=>setDistance(e.target.value)} placeholder={String(plan.objDistance||0)}
+              style={{...T.inp,fontSize:24,fontWeight:900,textAlign:"center",color:T.text,padding:"16px 4px"}}/>
+          </div>
+        </div>
+        {pace&&(
+          <div style={{marginBottom:12,background:T.card2,borderRadius:12,padding:"10px 12px",border:`1px solid ${T.border}`,fontFamily:"'IBM Plex Mono'",fontSize:13,fontWeight:700,color:T.textDim,textAlign:"center"}}>
+            ALLURE <strong style={{color:col,marginLeft:6}}>{pace} km/h</strong>
+          </div>
+        )}
+        <input value={note} onChange={e=>setNote(e.target.value)} placeholder="Remarque…" style={{...T.inp,marginBottom:14,fontSize:14}}/>
+        <button onClick={doLog} disabled={!filled} style={{...btn(col,"#fff"),width:"100%",padding:"16px",fontSize:16,opacity:filled?1:.4,boxShadow:filled?`0 4px 16px ${col}55`:"none",fontWeight:800,letterSpacing:.3}}>
+          {alreadyLogged?"↻ RE-VALIDER":"✓ VALIDER LA SÉANCE"}
+        </button>
+      </div>
+    </div>
+  );
+}
+
 /* ─── EXERCISE CARD (séance) ─────────────────────────────────────────────── */
 function ExCard({plan, exDB, onLog, todayLogs, allLogs, bw}) {
   const ex = exDB.find(e=>e.name===plan.exo);
+  if (ex?.isCardio) return <CardioCard plan={plan} ex={ex} onLog={onLog} todayLogs={todayLogs} allLogs={allLogs}/>;
   const tcol = tc(ex?.type||"Push");
   const col = tcol.bg;
   const [open,setOpen]=useState(false);
@@ -620,7 +754,7 @@ function Planner({weekPlan, setWeekPlan, exDB, allLogs, bw}) {
   const [step,setStep]=useState("list"); // list | addex | confirm
   const [search,setSearch]=useState("");
   const [pickedEx,setPickedEx]=useState(null);
-  const [form,setForm]=useState({objPoids:"",objReps:"8",objSeries:"3"});
+  const [form,setForm]=useState({objPoids:"",objReps:"8",objSeries:"3",objDuration:"30",objDistance:"5"});
   const [editIdx,setEditIdx]=useState(null);
   const [editForm,setEditForm]=useState({});
   const [showAddDay,setShowAddDay]=useState(false);
@@ -650,15 +784,30 @@ function Planner({weekPlan, setWeekPlan, exDB, allLogs, bw}) {
     const m={};
     exDB.forEach(ex=>{
       const lg=allLogs.filter(l=>l.exo===ex.name).sort((a,b)=>frSort(b.date,a.date));
-      const best = bestPerf(allLogs, ex.name);
-      m[ex.name]={
-        lastPerf:lg[0]?lg[0].series.map(s=>`${s.poids}×${s.reps}`).join(" "):"—",
-        lastDate:lg[0]?.date||null,
-        best,
-        bestStr: best ? `${best.poids}kg × ${best.reps}` : "—",
-        prVol:lg.reduce((b,l)=>l.volume>b?l.volume:b,0),
-        nSessions:lg.length,
-      };
+      if (ex.isCardio) {
+        const best = bestCardio(allLogs, ex.name);
+        const totalDur = lg.reduce((s,l)=>s+pf(l.duration),0);
+        const totalDist = lg.reduce((s,l)=>s+pf(l.distance),0);
+        m[ex.name]={
+          isCardio:true,
+          lastPerf: lg[0] ? cardioStr(lg[0]) : "—",
+          lastDate: lg[0]?.date||null,
+          bestStr: best ? (best.distance>0?`${best.distance.toFixed(1)}km`:`${best.duration}min`) : "—",
+          totalDur, totalDist,
+          prVol: 0,
+          nSessions: lg.length,
+        };
+      } else {
+        const best = bestPerf(allLogs, ex.name);
+        m[ex.name]={
+          lastPerf:lg[0]&&lg[0].series?lg[0].series.map(s=>`${s.poids}×${s.reps}`).join(" "):"—",
+          lastDate:lg[0]?.date||null,
+          best,
+          bestStr: best ? `${best.poids}kg × ${best.reps}` : "—",
+          prVol:lg.reduce((b,l)=>l.volume>b?l.volume:b,0),
+          nSessions:lg.length,
+        };
+      }
     });
     return m;
   },[allLogs,exDB]);
@@ -672,8 +821,11 @@ function Planner({weekPlan, setWeekPlan, exDB, allLogs, bw}) {
 
   const confirmAdd=()=>{
     if(!pickedEx)return;
-    set(sel,[...currPlan,{exo:pickedEx.name,objPoids:pf(form.objPoids),objReps:parseInt(form.objReps)||8,objSeries:parseInt(form.objSeries)||3,validatedFor:currentWeek}]);
-    setStep("list");setPickedEx(null);setForm({objPoids:"",objReps:"8",objSeries:"3"});setSearch("");
+    const entry = pickedEx.isCardio
+      ? {exo:pickedEx.name,objDuration:pf(form.objDuration),objDistance:pf(form.objDistance),validatedFor:currentWeek}
+      : {exo:pickedEx.name,objPoids:pf(form.objPoids),objReps:parseInt(form.objReps)||8,objSeries:parseInt(form.objSeries)||3,validatedFor:currentWeek};
+    set(sel,[...currPlan,entry]);
+    setStep("list");setPickedEx(null);setForm({objPoids:"",objReps:"8",objSeries:"3",objDuration:"30",objDistance:"5"});setSearch("");
   };
 
   const regenDay=(day)=>{
@@ -702,7 +854,7 @@ function Planner({weekPlan, setWeekPlan, exDB, allLogs, bw}) {
         {filteredEx.map(ex=>{
           const s=exStats[ex.name];
           const tcc=tc(ex.type);
-          const onPick=()=>{setPickedEx(ex);const sug=suggestObjective(ex.name,exDB,allLogs,null);setForm({objPoids:sug.objPoids?String(sug.objPoids):"",objReps:String(sug.objReps),objSeries:String(sug.objSeries)});setStep("confirm");};
+          const onPick=()=>{setPickedEx(ex);const sug=suggestObjective(ex.name,exDB,allLogs,null);if(ex.isCardio){setForm(f=>({...f,objDuration:sug.objDuration?String(sug.objDuration):"",objDistance:sug.objDistance?String(sug.objDistance):""}));}else{setForm(f=>({...f,objPoids:sug.objPoids?String(sug.objPoids):"",objReps:String(sug.objReps),objSeries:String(sug.objSeries)}));}setStep("confirm");};
           return(
             <div key={ex.name} role="button" tabIndex={0} onClick={onPick} onKeyDown={e=>{if(e.key==="Enter"||e.key===" "){e.preventDefault();onPick();}}}
               style={{background:T.card,border:`1px solid ${T.border}`,borderRadius:12,padding:"12px 14px 12px 18px",cursor:"pointer",position:"relative",WebkitTapHighlightColor:"transparent",display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:10,lineHeight:1.3}}>
@@ -712,7 +864,7 @@ function Planner({weekPlan, setWeekPlan, exDB, allLogs, bw}) {
                 <div style={{fontSize:11,color:T.dim,marginTop:4,fontWeight:500,lineHeight:1.3}}>{ex.muscle}{ex.mult>1?` · ×${ex.mult} bras`:""}{ex.barAdd>0?` · +${ex.barAdd}kg`:""}</div>
               </div>
               <div style={{textAlign:"right",fontSize:11,fontFamily:"'IBM Plex Mono'",color:T.dim,whiteSpace:"nowrap",lineHeight:1.3,flexShrink:0}}>
-                {s.bestStr!=="—"&&<div style={{color:T.green,fontWeight:800}}>{s.bestStr}</div>}
+                {ex.isCardio?(s.lastPerf!=="—"&&<div style={{color:tcc.bg,fontWeight:800}}>{s.lastPerf}</div>):(s.bestStr!=="—"&&<div style={{color:T.green,fontWeight:800}}>{s.bestStr}</div>)}
                 {s.nSessions>0&&<div style={{fontWeight:600,marginTop:2}}>{s.nSessions} séances</div>}
               </div>
             </div>
@@ -725,6 +877,7 @@ function Planner({weekPlan, setWeekPlan, exDB, allLogs, bw}) {
   // Step: set objective with full stats
   if(step==="confirm"&&pickedEx){
     const tcc=tc(pickedEx.type);
+    const isCardio = pickedEx.isCardio;
     return(
     <div style={{display:"flex",flexDirection:"column",gap:14}}>
       <div style={{display:"flex",alignItems:"center",gap:10}}>
@@ -738,12 +891,17 @@ function Planner({weekPlan, setWeekPlan, exDB, allLogs, bw}) {
           <div style={{fontFamily:"'Bebas Neue'",fontSize:14,letterSpacing:3,color:T.dim}}>HISTORIQUE</div>
         </div>
         <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
-          {[
+          {(isCardio?[
+            {l:"DERNIÈRE",v:st?.lastPerf||"—",c:T.text},
+            {l:"DERNIÈRE DATE",v:st?.lastDate||"—",c:T.dim},
+            {l:"MEILLEURE",v:st?.bestStr||"—",c:T.green},
+            {l:"TOTAL",v:st?.totalDur>0?`${(st.totalDur/60).toFixed(1)}h${st.totalDist>0?` · ${st.totalDist.toFixed(0)}km`:""}`:"—",c:T.amber},
+          ]:[
             {l:"DERNIÈRE PERF",v:st?.lastPerf||"—",c:T.text},
             {l:"DERNIÈRE DATE",v:st?.lastDate||"—",c:T.dim},
             {l:"MEILLEURE PERF",v:st?.bestStr||"—",c:T.green},
             {l:"PR VOLUME",v:st?.prVol>0?`${st.prVol.toFixed(0)} kg`:"—",c:T.amber},
-          ].map(({l,v,c})=>(
+          ]).map(({l,v,c})=>(
             <div key={l} style={{background:T.card2,borderRadius:10,padding:"9px 11px",border:`1px solid ${T.border}`}}>
               <div style={{fontSize:9,color:T.faint,fontFamily:"'IBM Plex Mono'",letterSpacing:1.2,marginBottom:3,fontWeight:700}}>{l}</div>
               <div style={{fontSize:13,color:c,fontWeight:800,fontFamily:"'IBM Plex Mono'"}}>{v}</div>
@@ -753,8 +911,8 @@ function Planner({weekPlan, setWeekPlan, exDB, allLogs, bw}) {
         {/* Last 3 sessions */}
         {allLogs.filter(l=>l.exo===pickedEx.name).sort((a,b)=>frSort(b.date,a.date)).slice(0,3).map(l=>(
           <div key={l.date+l.exo} style={{borderTop:`1px solid ${T.border}`,marginTop:12,paddingTop:10}}>
-            <div style={{fontSize:10,color:T.dim,fontFamily:"'IBM Plex Mono'",marginBottom:4,fontWeight:700,letterSpacing:.5}}>{l.date} · {l.volume.toFixed(0)} kg vol</div>
-            <div style={{fontSize:12,fontFamily:"'IBM Plex Mono'",color:T.text,fontWeight:600}}>{l.series.map(s=>`${s.poids}×${s.reps}`).join("  ")}</div>
+            <div style={{fontSize:10,color:T.dim,fontFamily:"'IBM Plex Mono'",marginBottom:4,fontWeight:700,letterSpacing:.5}}>{l.date}{!isCardio&&l.volume>0?` · ${l.volume.toFixed(0)} kg vol`:""}</div>
+            <div style={{fontSize:12,fontFamily:"'IBM Plex Mono'",color:T.text,fontWeight:600}}>{isCardio?cardioStr(l):(l.series||[]).map(s=>`${s.poids}×${s.reps}`).join("  ")}</div>
           </div>
         ))}
       </div>
@@ -764,15 +922,26 @@ function Planner({weekPlan, setWeekPlan, exDB, allLogs, bw}) {
           <div style={{fontFamily:"'Bebas Neue'",fontSize:14,letterSpacing:3,color:T.dim}}>OBJECTIF DE LA SEMAINE</div>
           <span style={{fontSize:9,background:T.amber+"22",color:T.amber,borderRadius:5,padding:"3px 7px",fontFamily:"'IBM Plex Mono'",fontWeight:800,letterSpacing:.5}}>💡 PRÉ-REMPLI</span>
         </div>
-        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:10,marginBottom:14}}>
-          {[{k:"objPoids",l:"POIDS"},{k:"objReps",l:"REPS"},{k:"objSeries",l:"SÉRIES"}].map(({k,l})=>(
-            <div key={k}>
-              <label style={T.lbl}>{l}</label>
-              <input type="number" step={k==="objPoids"?"0.5":"1"} value={form[k]} onChange={e=>setForm(f=>({...f,[k]:e.target.value}))} style={{...T.inp,textAlign:"center",fontSize:18,fontWeight:800,padding:"14px 4px"}}/>
-            </div>
-          ))}
-        </div>
-        {objVol>0&&<div style={{fontSize:13,color:T.dim,marginBottom:14,fontWeight:600}}>Volume cible : <strong style={{color:T.amber,fontFamily:"'IBM Plex Mono'"}}>{objVol.toFixed(0)} kg</strong></div>}
+        {isCardio?(
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:14}}>
+            {[{k:"objDuration",l:"DURÉE (MIN)"},{k:"objDistance",l:"DISTANCE (KM)"}].map(({k,l})=>(
+              <div key={k}>
+                <label style={T.lbl}>{l}</label>
+                <input type="number" step={k==="objDistance"?"0.1":"1"} value={form[k]} onChange={e=>setForm(f=>({...f,[k]:e.target.value}))} style={{...T.inp,textAlign:"center",fontSize:18,fontWeight:800,padding:"14px 4px"}}/>
+              </div>
+            ))}
+          </div>
+        ):(
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:10,marginBottom:14}}>
+            {[{k:"objPoids",l:"POIDS"},{k:"objReps",l:"REPS"},{k:"objSeries",l:"SÉRIES"}].map(({k,l})=>(
+              <div key={k}>
+                <label style={T.lbl}>{l}</label>
+                <input type="number" step={k==="objPoids"?"0.5":"1"} value={form[k]} onChange={e=>setForm(f=>({...f,[k]:e.target.value}))} style={{...T.inp,textAlign:"center",fontSize:18,fontWeight:800,padding:"14px 4px"}}/>
+              </div>
+            ))}
+          </div>
+        )}
+        {!isCardio&&objVol>0&&<div style={{fontSize:13,color:T.dim,marginBottom:14,fontWeight:600}}>Volume cible : <strong style={{color:T.amber,fontFamily:"'IBM Plex Mono'"}}>{objVol.toFixed(0)} kg</strong></div>}
         <button onClick={confirmAdd} style={{...btn(tcc.bg),width:"100%",padding:"15px",fontSize:15,boxShadow:`0 4px 16px ${tcc.bg}55`}}>+ AJOUTER AU PLAN</button>
       </div>
     </div>
@@ -832,30 +1001,54 @@ function Planner({weekPlan, setWeekPlan, exDB, allLogs, bw}) {
             const c=tcc.bg;
             const s=exStats[p.exo]||{lastPerf:"—",bestStr:"—"};
             const validated = p.validatedFor === currentWeek;
+            const isCardio = !!ex?.isCardio;
             const sug = !validated ? suggestObjective(p.exo, exDB, allLogs, p) : null;
-            const dispP = validated ? p.objPoids : sug.objPoids;
-            const dispR = validated ? p.objReps  : sug.objReps;
-            const dispS = validated ? p.objSeries : sug.objSeries;
-            const ov=realW(dispP,ex,bw)*dispR*dispS;
-            if(editIdx===i) return(
-              <div key={i} style={{background:T.cardHi,borderRadius:14,padding:14,border:`1px solid ${T.border}`,position:"relative",overflow:"hidden"}}>
-                <div style={{position:"absolute",left:0,top:0,bottom:0,width:3,background:tcc.grad}}/>
-                <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10,paddingLeft:6,gap:8}}>
-                  <div style={{fontWeight:800,fontSize:14,color:T.text,minWidth:0,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{p.exo}</div>
-                  {!validated&&<span style={{fontSize:9,background:T.amber+"22",color:T.amber,borderRadius:5,padding:"3px 7px",fontFamily:"'IBM Plex Mono'",fontWeight:800,letterSpacing:.5,whiteSpace:"nowrap"}}>💡 SUGGÉRÉ</span>}
+            const dispP = validated ? p.objPoids : sug?.objPoids;
+            const dispR = validated ? p.objReps  : sug?.objReps;
+            const dispS = validated ? p.objSeries : sug?.objSeries;
+            const dispDur = validated ? p.objDuration : sug?.objDuration;
+            const dispDist = validated ? p.objDistance : sug?.objDistance;
+            const ov=isCardio?0:realW(dispP,ex,bw)*dispR*dispS;
+            if(editIdx===i){
+              if(isCardio) return(
+                <div key={i} style={{background:T.cardHi,borderRadius:14,padding:14,border:`1px solid ${T.border}`,position:"relative",overflow:"hidden"}}>
+                  <div style={{position:"absolute",left:0,top:0,bottom:0,width:3,background:tcc.grad}}/>
+                  <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10,paddingLeft:6,gap:8}}>
+                    <div style={{fontWeight:800,fontSize:14,color:T.text,minWidth:0,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{p.exo}</div>
+                    {!validated&&<span style={{fontSize:9,background:T.amber+"22",color:T.amber,borderRadius:5,padding:"3px 7px",fontFamily:"'IBM Plex Mono'",fontWeight:800,letterSpacing:.5,whiteSpace:"nowrap"}}>💡 SUGGÉRÉ</span>}
+                  </div>
+                  <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:10}}>
+                    {[["objDuration","MIN","1"],["objDistance","KM","0.1"]].map(([k,l,step])=>(
+                      <div key={k}><label style={T.lbl}>{l}</label><input type="number" step={step} value={editForm[k]||""} onChange={e=>setEditForm(f=>({...f,[k]:e.target.value}))} style={{...T.inp,fontSize:16,fontWeight:800,textAlign:"center",padding:"12px 4px"}}/></div>
+                    ))}
+                  </div>
+                  {s.lastPerf!=="—"&&<div style={{fontSize:11,color:T.dim,fontFamily:"'IBM Plex Mono'",fontWeight:600,marginBottom:10,paddingLeft:2}}><span style={{color:T.faint,letterSpacing:.5}}>DERNIÈRE</span> {s.lastPerf}</div>}
+                  <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:6}}>
+                    <button onClick={()=>{set(sel,currPlan.map((px,j)=>j===i?{...px,objDuration:pf(editForm.objDuration),objDistance:pf(editForm.objDistance),validatedFor:currentWeek}:px));setEditIdx(null);}} style={btn(T.green,"#fff",{padding:"12px",fontSize:14})}>✓ VALIDER</button>
+                    <button onClick={()=>setEditIdx(null)} style={ghostBtn({padding:"12px",fontSize:14})}>Annuler</button>
+                  </div>
                 </div>
-                <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:8,marginBottom:10}}>
-                  {[["objPoids","KG"],["objReps","REPS"],["objSeries","SÉRIES"]].map(([k,l])=>(
-                    <div key={k}><label style={T.lbl}>{l}</label><input type="number" step={k==="objPoids"?"0.5":"1"} value={editForm[k]} onChange={e=>setEditForm(f=>({...f,[k]:e.target.value}))} style={{...T.inp,fontSize:16,fontWeight:800,textAlign:"center",padding:"12px 4px"}}/></div>
-                  ))}
+              );
+              return(
+                <div key={i} style={{background:T.cardHi,borderRadius:14,padding:14,border:`1px solid ${T.border}`,position:"relative",overflow:"hidden"}}>
+                  <div style={{position:"absolute",left:0,top:0,bottom:0,width:3,background:tcc.grad}}/>
+                  <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10,paddingLeft:6,gap:8}}>
+                    <div style={{fontWeight:800,fontSize:14,color:T.text,minWidth:0,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{p.exo}</div>
+                    {!validated&&<span style={{fontSize:9,background:T.amber+"22",color:T.amber,borderRadius:5,padding:"3px 7px",fontFamily:"'IBM Plex Mono'",fontWeight:800,letterSpacing:.5,whiteSpace:"nowrap"}}>💡 SUGGÉRÉ</span>}
+                  </div>
+                  <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:8,marginBottom:10}}>
+                    {[["objPoids","KG"],["objReps","REPS"],["objSeries","SÉRIES"]].map(([k,l])=>(
+                      <div key={k}><label style={T.lbl}>{l}</label><input type="number" step={k==="objPoids"?"0.5":"1"} value={editForm[k]||""} onChange={e=>setEditForm(f=>({...f,[k]:e.target.value}))} style={{...T.inp,fontSize:16,fontWeight:800,textAlign:"center",padding:"12px 4px"}}/></div>
+                    ))}
+                  </div>
+                  {s.lastPerf!=="—"&&<div style={{fontSize:11,color:T.dim,fontFamily:"'IBM Plex Mono'",fontWeight:600,marginBottom:10,paddingLeft:2}}><span style={{color:T.faint,letterSpacing:.5}}>DERNIÈRE</span> {s.lastPerf}{s.bestStr!=="—"?<><span style={{color:T.faint,marginLeft:10,letterSpacing:.5}}>BEST</span> <span style={{color:T.green,fontWeight:800}}>{s.bestStr}</span></>:""}</div>}
+                  <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:6}}>
+                    <button onClick={()=>{set(sel,currPlan.map((px,j)=>j===i?{...px,objPoids:pf(editForm.objPoids),objReps:parseInt(editForm.objReps)||8,objSeries:parseInt(editForm.objSeries)||3,validatedFor:currentWeek}:px));setEditIdx(null);}} style={btn(T.green,"#fff",{padding:"12px",fontSize:14})}>✓ VALIDER</button>
+                    <button onClick={()=>setEditIdx(null)} style={ghostBtn({padding:"12px",fontSize:14})}>Annuler</button>
+                  </div>
                 </div>
-                {s.lastPerf!=="—"&&<div style={{fontSize:11,color:T.dim,fontFamily:"'IBM Plex Mono'",fontWeight:600,marginBottom:10,paddingLeft:2}}><span style={{color:T.faint,letterSpacing:.5}}>DERNIÈRE</span> {s.lastPerf}{s.bestStr!=="—"?<><span style={{color:T.faint,marginLeft:10,letterSpacing:.5}}>BEST</span> <span style={{color:T.green,fontWeight:800}}>{s.bestStr}</span></>:""}</div>}
-                <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:6}}>
-                  <button onClick={()=>{set(sel,currPlan.map((px,j)=>j===i?{...px,objPoids:pf(editForm.objPoids),objReps:parseInt(editForm.objReps)||8,objSeries:parseInt(editForm.objSeries)||3,validatedFor:currentWeek}:px));setEditIdx(null);}} style={btn(T.green,"#fff",{padding:"12px",fontSize:14})}>✓ VALIDER</button>
-                  <button onClick={()=>setEditIdx(null)} style={ghostBtn({padding:"12px",fontSize:14})}>Annuler</button>
-                </div>
-              </div>
-            );
+              );
+            }
             return(
               <div key={i} style={{background:T.card,borderRadius:14,padding:"12px 14px",border:`1px solid ${validated?T.border:T.amber+"33"}`,position:"relative",overflow:"hidden"}}>
                 <div style={{position:"absolute",left:0,top:0,bottom:0,width:3,background:tcc.grad}}/>
@@ -863,6 +1056,7 @@ function Planner({weekPlan, setWeekPlan, exDB, allLogs, bw}) {
                   <div style={{flex:1,minWidth:0}}>
                     <div style={{display:"flex",alignItems:"center",gap:6,flexWrap:"wrap"}}>
                       <span style={{fontWeight:800,fontSize:14,color:T.text,letterSpacing:-.2}}>{p.exo}</span>
+                      {isCardio&&<span style={{fontSize:9,background:tcc.soft,color:tcc.bg,borderRadius:5,padding:"2px 6px",fontFamily:"'IBM Plex Mono'",fontWeight:800,letterSpacing:.5}}>CARDIO</span>}
                       {validated
                         ? <span style={{fontSize:9,background:T.green+"22",color:T.green,borderRadius:5,padding:"2px 6px",fontFamily:"'IBM Plex Mono'",fontWeight:800,letterSpacing:.5}}>✓</span>
                         : <span style={{fontSize:9,background:T.amber+"22",color:T.amber,borderRadius:5,padding:"2px 6px",fontFamily:"'IBM Plex Mono'",fontWeight:800,letterSpacing:.5}}>💡 SUGGÉRÉ</span>
@@ -871,24 +1065,38 @@ function Planner({weekPlan, setWeekPlan, exDB, allLogs, bw}) {
                     <div style={{fontSize:11,color:T.dim,marginTop:3,fontFamily:"'IBM Plex Mono'",fontWeight:600}}>{ex?.muscle?.toUpperCase()}</div>
                   </div>
                   <div style={{display:"flex",gap:2}}>
-                    <button onClick={()=>{setEditIdx(i);setEditForm({objPoids:String(dispP||""),objReps:String(dispR||""),objSeries:String(dispS||"")});}} style={{background:T.ghost,border:"none",cursor:"pointer",color:T.dim,fontSize:14,padding:"7px 10px",borderRadius:8,WebkitTapHighlightColor:"transparent"}}>✏️</button>
+                    <button onClick={()=>{setEditIdx(i);setEditForm(isCardio?{objDuration:String(dispDur||""),objDistance:String(dispDist||"")}:{objPoids:String(dispP||""),objReps:String(dispR||""),objSeries:String(dispS||"")});}} style={{background:T.ghost,border:"none",cursor:"pointer",color:T.dim,fontSize:14,padding:"7px 10px",borderRadius:8,WebkitTapHighlightColor:"transparent"}}>✏️</button>
                     <button onClick={()=>askRemoveExo(i,p.exo)} style={{background:T.ghost,border:"none",cursor:"pointer",color:T.faint,fontSize:18,padding:"7px 10px",borderRadius:8,WebkitTapHighlightColor:"transparent"}}>×</button>
                   </div>
                 </div>
-                {/* Stats row — 3 colonnes responsives, pas de scroll */}
                 <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:6,marginTop:10,paddingLeft:6}}>
-                  <div style={{background:T.card2,borderRadius:8,padding:"7px 9px",border:`1px solid ${T.border}`}}>
-                    <div style={{fontSize:9,color:T.faint,fontFamily:"'IBM Plex Mono'",letterSpacing:1,fontWeight:700,marginBottom:2}}>{validated?"OBJECTIF":"SUGGÉRÉ"}</div>
-                    <div style={{fontSize:12,fontFamily:"'IBM Plex Mono'",color:validated?c:T.dim,fontWeight:800,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",fontStyle:validated?"normal":"italic"}}>{dispP>0?`${dispP}`:"PDC"}<span style={{color:T.dim}}>×{dispR}×{dispS}</span></div>
-                  </div>
-                  <div style={{background:T.card2,borderRadius:8,padding:"7px 9px",border:`1px solid ${T.border}`}}>
-                    <div style={{fontSize:9,color:T.faint,fontFamily:"'IBM Plex Mono'",letterSpacing:1,fontWeight:700,marginBottom:2}}>MEILLEURE</div>
-                    <div style={{fontSize:12,fontFamily:"'IBM Plex Mono'",color:T.green,fontWeight:800,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{s.bestStr}</div>
-                  </div>
-                  <div style={{background:T.card2,borderRadius:8,padding:"7px 9px",border:`1px solid ${T.border}`}}>
-                    <div style={{fontSize:9,color:T.faint,fontFamily:"'IBM Plex Mono'",letterSpacing:1,fontWeight:700,marginBottom:2}}>OBJ. VOL</div>
-                    <div style={{fontSize:12,fontFamily:"'IBM Plex Mono'",color:T.amber,fontWeight:800}}>{ov>0?`${ov.toFixed(0)}kg`:"—"}</div>
-                  </div>
+                  {isCardio?(<>
+                    <div style={{background:T.card2,borderRadius:8,padding:"7px 9px",border:`1px solid ${T.border}`}}>
+                      <div style={{fontSize:9,color:T.faint,fontFamily:"'IBM Plex Mono'",letterSpacing:1,fontWeight:700,marginBottom:2}}>{validated?"OBJECTIF":"SUGGÉRÉ"}</div>
+                      <div style={{fontSize:12,fontFamily:"'IBM Plex Mono'",color:validated?c:T.dim,fontWeight:800,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",fontStyle:validated?"normal":"italic"}}>{[dispDur>0?`${dispDur}min`:null,dispDist>0?`${dispDist}km`:null].filter(Boolean).join(" · ")||"—"}</div>
+                    </div>
+                    <div style={{background:T.card2,borderRadius:8,padding:"7px 9px",border:`1px solid ${T.border}`}}>
+                      <div style={{fontSize:9,color:T.faint,fontFamily:"'IBM Plex Mono'",letterSpacing:1,fontWeight:700,marginBottom:2}}>MEILLEURE</div>
+                      <div style={{fontSize:12,fontFamily:"'IBM Plex Mono'",color:T.green,fontWeight:800,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{s.bestStr}</div>
+                    </div>
+                    <div style={{background:T.card2,borderRadius:8,padding:"7px 9px",border:`1px solid ${T.border}`}}>
+                      <div style={{fontSize:9,color:T.faint,fontFamily:"'IBM Plex Mono'",letterSpacing:1,fontWeight:700,marginBottom:2}}>TOTAL</div>
+                      <div style={{fontSize:12,fontFamily:"'IBM Plex Mono'",color:T.amber,fontWeight:800,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{s.totalDur>0?`${(s.totalDur/60).toFixed(1)}h`:"—"}</div>
+                    </div>
+                  </>):(<>
+                    <div style={{background:T.card2,borderRadius:8,padding:"7px 9px",border:`1px solid ${T.border}`}}>
+                      <div style={{fontSize:9,color:T.faint,fontFamily:"'IBM Plex Mono'",letterSpacing:1,fontWeight:700,marginBottom:2}}>{validated?"OBJECTIF":"SUGGÉRÉ"}</div>
+                      <div style={{fontSize:12,fontFamily:"'IBM Plex Mono'",color:validated?c:T.dim,fontWeight:800,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",fontStyle:validated?"normal":"italic"}}>{dispP>0?`${dispP}`:"PDC"}<span style={{color:T.dim}}>×{dispR}×{dispS}</span></div>
+                    </div>
+                    <div style={{background:T.card2,borderRadius:8,padding:"7px 9px",border:`1px solid ${T.border}`}}>
+                      <div style={{fontSize:9,color:T.faint,fontFamily:"'IBM Plex Mono'",letterSpacing:1,fontWeight:700,marginBottom:2}}>MEILLEURE</div>
+                      <div style={{fontSize:12,fontFamily:"'IBM Plex Mono'",color:T.green,fontWeight:800,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{s.bestStr}</div>
+                    </div>
+                    <div style={{background:T.card2,borderRadius:8,padding:"7px 9px",border:`1px solid ${T.border}`}}>
+                      <div style={{fontSize:9,color:T.faint,fontFamily:"'IBM Plex Mono'",letterSpacing:1,fontWeight:700,marginBottom:2}}>OBJ. VOL</div>
+                      <div style={{fontSize:12,fontFamily:"'IBM Plex Mono'",color:T.amber,fontWeight:800}}>{ov>0?`${ov.toFixed(0)}kg`:"—"}</div>
+                    </div>
+                  </>)}
                 </div>
                 {s.lastPerf!=="—"&&<div style={{marginTop:8,paddingLeft:6,fontSize:11,color:T.dim,fontFamily:"'IBM Plex Mono'",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}><span style={{color:T.faint,fontWeight:700,letterSpacing:.5}}>DERNIÈRE</span> {s.lastPerf}</div>}
               </div>
@@ -969,13 +1177,23 @@ function Stats({logs, exDB}) {
 
   const prPerExo=useMemo(()=>{
     const m={};
-    filtered.forEach(l=>{const ex=exDB.find(e=>e.name===l.exo);l.series.forEach(s=>{const rw=realW(s.poids,ex,0);if(!m[l.exo]||rw>m[l.exo].poids)m[l.exo]={poids:rw,reps:pf(s.reps),date:l.date,type:l.type};});});
+    filtered.forEach(l=>{const ex=exDB.find(e=>e.name===l.exo);if(ex?.isCardio||l.type==="Cardio")return;(l.series||[]).forEach(s=>{const rw=realW(s.poids,ex,0);if(!m[l.exo]||rw>m[l.exo].poids)m[l.exo]={poids:rw,reps:pf(s.reps),date:l.date,type:l.type};});});
     return Object.entries(m).sort((a,b)=>b[1].poids-a[1].poids);
   },[filtered,exDB]);
 
-  const volByExo=useMemo(()=>{const m={};filtered.forEach(l=>{m[l.exo]=(m[l.exo]||0)+(l.volume||0);});return Object.entries(m).sort((a,b)=>b[1]-a[1]);},[filtered]);
-  const volByMuscle=useMemo(()=>{const m={};filtered.forEach(l=>{m[l.muscle]=(m[l.muscle]||0)+(l.volume||0);});return Object.entries(m).sort((a,b)=>b[1]-a[1]);},[filtered]);
-  const volByType=useMemo(()=>{const m={Push:0,Pull:0,Legs:0,Gainage:0};filtered.forEach(l=>{const ex=exDB.find(e=>e.name===l.exo);const t=ex?.type||"Push";m[t]=(m[t]||0)+(l.volume||0);});return Object.entries(m);},[filtered,exDB]);
+  const volByExo=useMemo(()=>{const m={};filtered.forEach(l=>{if(l.type==="Cardio")return;m[l.exo]=(m[l.exo]||0)+(l.volume||0);});return Object.entries(m).sort((a,b)=>b[1]-a[1]);},[filtered]);
+  const volByMuscle=useMemo(()=>{const m={};filtered.forEach(l=>{if(l.type==="Cardio")return;m[l.muscle]=(m[l.muscle]||0)+(l.volume||0);});return Object.entries(m).sort((a,b)=>b[1]-a[1]);},[filtered]);
+  const volByType=useMemo(()=>{const m={Push:0,Pull:0,Legs:0,Gainage:0};filtered.forEach(l=>{const ex=exDB.find(e=>e.name===l.exo);const t=ex?.type||"Push";if(t==="Cardio")return;m[t]=(m[t]||0)+(l.volume||0);});return Object.entries(m);},[filtered,exDB]);
+
+  // Cardio aggregates
+  const cardioLogs=useMemo(()=>filtered.filter(l=>l.type==="Cardio"||exDB.find(e=>e.name===l.exo)?.isCardio),[filtered,exDB]);
+  const cardioTotals=useMemo(()=>{
+    const totalDur=cardioLogs.reduce((s,l)=>s+pf(l.duration),0);
+    const totalDist=cardioLogs.reduce((s,l)=>s+pf(l.distance),0);
+    const byExo={};
+    cardioLogs.forEach(l=>{const k=l.exo;if(!byExo[k])byExo[k]={duration:0,distance:0,n:0};byExo[k].duration+=pf(l.duration);byExo[k].distance+=pf(l.distance);byExo[k].n++;});
+    return {totalDur,totalDist,nSess:cardioLogs.length,byExo:Object.entries(byExo).sort((a,b)=>b[1].duration-a[1].duration)};
+  },[cardioLogs]);
 
   // Sessions by weekday
   const sessionsByDow=useMemo(()=>{
@@ -984,12 +1202,12 @@ function Stats({logs, exDB}) {
     return DAYS_OF_WEEK.map(d=>[d,m[d]||0]);
   },[sessionDates]);
 
-  // Progression of top exos (top 3 by frequency)
+  // Progression of top strength exos (top 3 by frequency, cardio excluded)
   const topExos=useMemo(()=>{
-    const counts={};filtered.forEach(l=>{counts[l.exo]=(counts[l.exo]||0)+1;});
+    const counts={};filtered.forEach(l=>{const ex=exDB.find(e=>e.name===l.exo);if(ex?.isCardio||l.type==="Cardio")return;counts[l.exo]=(counts[l.exo]||0)+1;});
     return Object.entries(counts).sort((a,b)=>b[1]-a[1]).slice(0,3).map(([exo])=>{
       const series=filtered.filter(l=>l.exo===exo).sort((a,b)=>frSort(a.date,b.date));
-      const points=series.map(l=>{const ex=exDB.find(e=>e.name===l.exo);return {date:l.date,max:l.series.reduce((mx,s)=>{const rw=realW(s.poids,ex,0);return rw>mx?rw:mx;},0)};});
+      const points=series.map(l=>{const ex=exDB.find(e=>e.name===l.exo);return {date:l.date,max:(l.series||[]).reduce((mx,s)=>{const rw=realW(s.poids,ex,0);return rw>mx?rw:mx;},0)};});
       const ex=exDB.find(e=>e.name===exo);
       return {exo,type:ex?.type||"Push",points};
     });
@@ -1020,7 +1238,7 @@ function Stats({logs, exDB}) {
       <div style={{background:T.card,borderRadius:12,padding:"12px 14px",border:`1px solid ${T.border}`}}>
         <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:8}}>
           {[
-            {l:"TYPE",v:fType,s:setFType,opts:["Tous","Push","Pull","Legs","Gainage"]},
+            {l:"TYPE",v:fType,s:setFType,opts:["Tous","Push","Pull","Legs","Gainage","Cardio"]},
             {l:"MUSCLE",v:fMuscle,s:setFMuscle,opts:allMuscles},
             {l:"EXERCICE",v:fExo,s:setFExo,opts:allExos},
           ].map(({l,v,s,opts})=>(
@@ -1193,6 +1411,45 @@ function Stats({logs, exDB}) {
         </div>
       )}
 
+      {/* CARDIO block */}
+      {cardioTotals.nSess>0&&(
+        <div style={{background:T.card,borderRadius:14,padding:"14px 16px",border:`1px solid ${T.border}`,position:"relative",overflow:"hidden"}}>
+          <div style={{position:"absolute",left:0,top:0,bottom:0,width:3,background:tc("Cardio").grad}}/>
+          <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:14,paddingLeft:6}}>
+            <div style={{fontFamily:"'Bebas Neue'",fontSize:14,letterSpacing:2.5,color:T.dim}}>CARDIO</div>
+            <span style={{fontSize:9,background:tc("Cardio").soft,color:tc("Cardio").bg,borderRadius:5,padding:"2px 7px",fontFamily:"'IBM Plex Mono'",fontWeight:800,letterSpacing:.5}}>{cardioTotals.nSess} séance{cardioTotals.nSess>1?"s":""}</span>
+          </div>
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:8,marginBottom:14,paddingLeft:6}}>
+            <div style={{background:T.card2,borderRadius:10,padding:"9px 11px",border:`1px solid ${T.border}`}}>
+              <div style={{fontSize:9,color:T.faint,fontFamily:"'IBM Plex Mono'",letterSpacing:1.2,marginBottom:3,fontWeight:700}}>TEMPS</div>
+              <div style={{fontFamily:"'Bebas Neue'",fontSize:24,color:T.text,letterSpacing:1,lineHeight:1}}>{(cardioTotals.totalDur/60).toFixed(1)}h</div>
+            </div>
+            <div style={{background:T.card2,borderRadius:10,padding:"9px 11px",border:`1px solid ${T.border}`}}>
+              <div style={{fontSize:9,color:T.faint,fontFamily:"'IBM Plex Mono'",letterSpacing:1.2,marginBottom:3,fontWeight:700}}>DISTANCE</div>
+              <div style={{fontFamily:"'Bebas Neue'",fontSize:24,color:tc("Cardio").bg,letterSpacing:1,lineHeight:1}}>{cardioTotals.totalDist.toFixed(0)}<span style={{fontSize:14,color:T.dim}}>km</span></div>
+            </div>
+            <div style={{background:T.card2,borderRadius:10,padding:"9px 11px",border:`1px solid ${T.border}`}}>
+              <div style={{fontSize:9,color:T.faint,fontFamily:"'IBM Plex Mono'",letterSpacing:1.2,marginBottom:3,fontWeight:700}}>ALLURE</div>
+              <div style={{fontFamily:"'Bebas Neue'",fontSize:24,color:T.green,letterSpacing:1,lineHeight:1}}>{cardioTotals.totalDur>0&&cardioTotals.totalDist>0?(cardioTotals.totalDist*60/cardioTotals.totalDur).toFixed(1):"—"}<span style={{fontSize:13,color:T.dim}}> km/h</span></div>
+            </div>
+          </div>
+          {cardioTotals.byExo.slice(0,6).map(([exo,d],i)=>{
+            const mx=cardioTotals.byExo[0][1].duration||1;
+            return(
+              <div key={exo} className="k-row" style={{marginBottom:9,paddingLeft:6,animationDelay:`${i*30}ms`}}>
+                <div style={{display:"flex",justifyContent:"space-between",marginBottom:4,fontSize:12,gap:8}}>
+                  <span style={{color:T.textDim,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",fontWeight:600}}>{exo}</span>
+                  <span style={{fontFamily:"'IBM Plex Mono'",color:tc("Cardio").bg,fontSize:11,fontWeight:800,whiteSpace:"nowrap"}}>{(d.duration/60).toFixed(1)}h{d.distance>0?` · ${d.distance.toFixed(0)}km`:""}</span>
+                </div>
+                <div style={{height:5,background:T.ghost,borderRadius:3,overflow:"hidden"}}>
+                  <div className="k-bar" style={{width:`${(d.duration/mx)*100}%`,height:"100%",background:tc("Cardio").grad,borderRadius:3,animationDelay:`${i*30+150}ms`}}/>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
       {/* PRs */}
       {prPerExo.length>0&&(
         <div style={{background:T.card,borderRadius:14,padding:"14px 16px",border:`1px solid ${T.border}`}}>
@@ -1249,15 +1506,22 @@ function Stats({logs, exDB}) {
 /* ─── LOG EDITOR MODAL ───────────────────────────────────────────────────── */
 function LogEditor({log, exDB, onSave, onDelete, onClose, bw}) {
   const ex = exDB.find(e=>e.name===log.exo);
-  const tcol = tc(ex?.type||"Push");
-  const [series,setSeries]=useState(log.series.map(s=>({poids:String(s.poids),reps:String(s.reps)})));
+  const isCardio = !!ex?.isCardio || log.type==="Cardio";
+  const tcol = tc(ex?.type||(isCardio?"Cardio":"Push"));
+  const [series,setSeries]=useState(isCardio?[]:(log.series||[]).map(s=>({poids:String(s.poids),reps:String(s.reps)})));
+  const [duration,setDuration]=useState(log.duration?String(log.duration):"");
+  const [distance,setDistance]=useState(log.distance?String(log.distance):"");
   const [note,setNote]=useState(log.note||"");
   const [confirmDel,setConfirmDel]=useState(false);
   const upd=(i,f,v)=>setSeries(p=>p.map((s,j)=>j===i?{...s,[f]:v}:s));
   const save=()=>{
-    const filled=series.filter(s=>s.reps!==""||s.poids!=="");
-    const newVol=calcVol(filled,ex,bw);
-    onSave({...log,series:filled.map(s=>({poids:pf(s.poids),reps:pf(s.reps)})),volume:newVol,note});
+    if(isCardio){
+      onSave({...log,duration:pf(duration),distance:pf(distance),series:[],volume:0,note,type:"Cardio",muscle:"Cardio",isCardio:true});
+    } else {
+      const filled=series.filter(s=>s.reps!==""||s.poids!=="");
+      const newVol=calcVol(filled,ex,bw);
+      onSave({...log,series:filled.map(s=>({poids:pf(s.poids),reps:pf(s.reps)})),volume:newVol,note});
+    }
     onClose();
   };
   return(
@@ -1276,18 +1540,25 @@ function LogEditor({log, exDB, onSave, onDelete, onClose, bw}) {
           </div>
           <button onClick={onClose} style={{background:T.ghost,border:"none",color:T.dim,fontSize:18,cursor:"pointer",borderRadius:10,padding:"8px 11px",WebkitTapHighlightColor:"transparent"}}>✕</button>
         </div>
-        <div style={{display:"grid",gridTemplateColumns:"24px 1fr 1fr 36px",gap:8,marginBottom:6,padding:"0 2px"}}>
-          <div/><div style={{...T.lbl,textAlign:"center",marginBottom:0}}>KG</div><div style={{...T.lbl,textAlign:"center",marginBottom:0}}>REPS</div><div/>
-        </div>
-        {series.map((s,i)=>(
-          <div key={i} style={{display:"grid",gridTemplateColumns:"24px 1fr 1fr 36px",gap:8,marginBottom:9,alignItems:"center"}}>
-            <div style={{fontSize:13,color:T.faint,textAlign:"center",fontFamily:"'Bebas Neue'",letterSpacing:1}}>{i+1}</div>
-            <input type="number" step="0.5" value={s.poids} onChange={e=>upd(i,"poids",e.target.value)} style={{...T.inp,textAlign:"center",fontSize:20,fontWeight:900,padding:"13px 4px"}}/>
-            <input type="number" value={s.reps} onChange={e=>upd(i,"reps",e.target.value)} style={{...T.inp,textAlign:"center",fontSize:20,fontWeight:900,padding:"13px 4px"}}/>
-            <button onClick={()=>setSeries(p=>p.filter((_,j)=>j!==i))} style={{background:"transparent",border:"none",cursor:"pointer",color:T.faint,fontSize:22,WebkitTapHighlightColor:"transparent"}}>×</button>
+        {isCardio?(
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:14}}>
+            <div><label style={T.lbl}>DURÉE (MIN)</label><input type="number" step="1" value={duration} onChange={e=>setDuration(e.target.value)} style={{...T.inp,fontSize:22,fontWeight:900,textAlign:"center",padding:"14px 4px"}}/></div>
+            <div><label style={T.lbl}>DISTANCE (KM)</label><input type="number" step="0.1" value={distance} onChange={e=>setDistance(e.target.value)} style={{...T.inp,fontSize:22,fontWeight:900,textAlign:"center",padding:"14px 4px"}}/></div>
           </div>
-        ))}
-        <button onClick={()=>setSeries(p=>[...p,{poids:p[p.length-1]?.poids||"",reps:""}])} style={{background:"transparent",border:`1.5px dashed ${T.border}`,borderRadius:12,color:T.dim,fontSize:13,cursor:"pointer",padding:"11px",width:"100%",marginBottom:14,fontWeight:600,fontFamily:"'Inter',sans-serif",WebkitTapHighlightColor:"transparent"}}>+ Ajouter une série</button>
+        ):(<>
+          <div style={{display:"grid",gridTemplateColumns:"24px 1fr 1fr 36px",gap:8,marginBottom:6,padding:"0 2px"}}>
+            <div/><div style={{...T.lbl,textAlign:"center",marginBottom:0}}>KG</div><div style={{...T.lbl,textAlign:"center",marginBottom:0}}>REPS</div><div/>
+          </div>
+          {series.map((s,i)=>(
+            <div key={i} style={{display:"grid",gridTemplateColumns:"24px 1fr 1fr 36px",gap:8,marginBottom:9,alignItems:"center"}}>
+              <div style={{fontSize:13,color:T.faint,textAlign:"center",fontFamily:"'Bebas Neue'",letterSpacing:1}}>{i+1}</div>
+              <input type="number" step="0.5" value={s.poids} onChange={e=>upd(i,"poids",e.target.value)} style={{...T.inp,textAlign:"center",fontSize:20,fontWeight:900,padding:"13px 4px"}}/>
+              <input type="number" value={s.reps} onChange={e=>upd(i,"reps",e.target.value)} style={{...T.inp,textAlign:"center",fontSize:20,fontWeight:900,padding:"13px 4px"}}/>
+              <button onClick={()=>setSeries(p=>p.filter((_,j)=>j!==i))} style={{background:"transparent",border:"none",cursor:"pointer",color:T.faint,fontSize:22,WebkitTapHighlightColor:"transparent"}}>×</button>
+            </div>
+          ))}
+          <button onClick={()=>setSeries(p=>[...p,{poids:p[p.length-1]?.poids||"",reps:""}])} style={{background:"transparent",border:`1.5px dashed ${T.border}`,borderRadius:12,color:T.dim,fontSize:13,cursor:"pointer",padding:"11px",width:"100%",marginBottom:14,fontWeight:600,fontFamily:"'Inter',sans-serif",WebkitTapHighlightColor:"transparent"}}>+ Ajouter une série</button>
+        </>)}
         <input value={note} onChange={e=>setNote(e.target.value)} placeholder="Remarque…" style={{...T.inp,marginBottom:14}}/>
         <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:8}}>
           <button onClick={save} style={btn(T.green,"#fff",{padding:"14px",fontSize:14,boxShadow:`0 4px 12px ${T.green}55`})}>✓ Enregistrer</button>
@@ -1308,6 +1579,8 @@ function LogAddModal({defaultDate, exDB, onSave, onClose, bw}) {
   const [muscleFilter,setMuscleFilter]=useState("Tous");
   const [pickedEx,setPickedEx]=useState(null);
   const [series,setSeries]=useState([{poids:"",reps:""},{poids:"",reps:""},{poids:"",reps:""}]);
+  const [duration,setDuration]=useState("");
+  const [distance,setDistance]=useState("");
   const [note,setNote]=useState("");
 
   const muscles=["Tous",...MUSCLE_GROUPS.filter(m=>exDB.some(e=>e.muscle===m))];
@@ -1321,9 +1594,14 @@ function LogAddModal({defaultDate, exDB, onSave, onClose, bw}) {
   const submit=()=>{
     if(!pickedEx)return;
     if(!/^\d{2}\/\d{2}\/\d{4}$/.test(date.trim()))return;
-    const filled=series.filter(s=>s.reps!==""||s.poids!=="").map(s=>({poids:pf(s.poids),reps:pf(s.reps)}));
-    if(!filled.length)return;
-    onSave({date:date.trim(),exo:pickedEx.name,muscle:pickedEx.muscle,type:pickedEx.type,series:filled,volume:calcVol(filled,pickedEx,bw),note,mult:pickedEx.mult,barAdd:pickedEx.barAdd,useBodyweight:pickedEx.useBodyweight||false,ts:Date.now()});
+    if(pickedEx.isCardio){
+      if(pf(duration)<=0&&pf(distance)<=0)return;
+      onSave({date:date.trim(),exo:pickedEx.name,muscle:"Cardio",type:"Cardio",duration:pf(duration),distance:pf(distance),series:[],volume:0,note,mult:1,barAdd:0,isCardio:true,ts:Date.now()});
+    } else {
+      const filled=series.filter(s=>s.reps!==""||s.poids!=="").map(s=>({poids:pf(s.poids),reps:pf(s.reps)}));
+      if(!filled.length)return;
+      onSave({date:date.trim(),exo:pickedEx.name,muscle:pickedEx.muscle,type:pickedEx.type,series:filled,volume:calcVol(filled,pickedEx,bw),note,mult:pickedEx.mult,barAdd:pickedEx.barAdd,useBodyweight:pickedEx.useBodyweight||false,ts:Date.now()});
+    }
     onClose();
   };
 
@@ -1370,18 +1648,25 @@ function LogAddModal({defaultDate, exDB, onSave, onClose, bw}) {
             </div>
             <button onClick={onClose} style={{background:T.ghost,border:"none",color:T.dim,fontSize:18,cursor:"pointer",borderRadius:10,padding:"8px 11px"}}>✕</button>
           </div>
-          <div style={{display:"grid",gridTemplateColumns:"24px 1fr 1fr 36px",gap:8,marginBottom:6}}>
-            <div/><div style={{...T.lbl,textAlign:"center",marginBottom:0}}>KG</div><div style={{...T.lbl,textAlign:"center",marginBottom:0}}>REPS</div><div/>
-          </div>
-          {series.map((s,i)=>(
-            <div key={i} style={{display:"grid",gridTemplateColumns:"24px 1fr 1fr 36px",gap:8,marginBottom:9,alignItems:"center"}}>
-              <div style={{fontSize:13,color:T.faint,textAlign:"center",fontFamily:"'Bebas Neue'",letterSpacing:1}}>{i+1}</div>
-              <input type="number" step="0.5" value={s.poids} onChange={e=>upd(i,"poids",e.target.value)} style={{...T.inp,textAlign:"center",fontSize:20,fontWeight:900,padding:"13px 4px"}}/>
-              <input type="number" value={s.reps} onChange={e=>upd(i,"reps",e.target.value)} style={{...T.inp,textAlign:"center",fontSize:20,fontWeight:900,padding:"13px 4px"}}/>
-              <button onClick={()=>setSeries(p=>p.filter((_,j)=>j!==i))} style={{background:"transparent",border:"none",cursor:"pointer",color:T.faint,fontSize:22}}>×</button>
+          {pickedEx.isCardio?(
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:14}}>
+              <div><label style={T.lbl}>DURÉE (MIN)</label><input type="number" step="1" value={duration} onChange={e=>setDuration(e.target.value)} style={{...T.inp,fontSize:22,fontWeight:900,textAlign:"center",padding:"14px 4px"}}/></div>
+              <div><label style={T.lbl}>DISTANCE (KM)</label><input type="number" step="0.1" value={distance} onChange={e=>setDistance(e.target.value)} style={{...T.inp,fontSize:22,fontWeight:900,textAlign:"center",padding:"14px 4px"}}/></div>
             </div>
-          ))}
-          <button onClick={()=>setSeries(p=>[...p,{poids:p[p.length-1]?.poids||"",reps:""}])} style={{background:"transparent",border:`1.5px dashed ${T.border}`,borderRadius:12,color:T.dim,fontSize:13,cursor:"pointer",padding:"11px",width:"100%",marginBottom:14,fontWeight:600,fontFamily:"'Inter',sans-serif"}}>+ Ajouter une série</button>
+          ):(<>
+            <div style={{display:"grid",gridTemplateColumns:"24px 1fr 1fr 36px",gap:8,marginBottom:6}}>
+              <div/><div style={{...T.lbl,textAlign:"center",marginBottom:0}}>KG</div><div style={{...T.lbl,textAlign:"center",marginBottom:0}}>REPS</div><div/>
+            </div>
+            {series.map((s,i)=>(
+              <div key={i} style={{display:"grid",gridTemplateColumns:"24px 1fr 1fr 36px",gap:8,marginBottom:9,alignItems:"center"}}>
+                <div style={{fontSize:13,color:T.faint,textAlign:"center",fontFamily:"'Bebas Neue'",letterSpacing:1}}>{i+1}</div>
+                <input type="number" step="0.5" value={s.poids} onChange={e=>upd(i,"poids",e.target.value)} style={{...T.inp,textAlign:"center",fontSize:20,fontWeight:900,padding:"13px 4px"}}/>
+                <input type="number" value={s.reps} onChange={e=>upd(i,"reps",e.target.value)} style={{...T.inp,textAlign:"center",fontSize:20,fontWeight:900,padding:"13px 4px"}}/>
+                <button onClick={()=>setSeries(p=>p.filter((_,j)=>j!==i))} style={{background:"transparent",border:"none",cursor:"pointer",color:T.faint,fontSize:22}}>×</button>
+              </div>
+            ))}
+            <button onClick={()=>setSeries(p=>[...p,{poids:p[p.length-1]?.poids||"",reps:""}])} style={{background:"transparent",border:`1.5px dashed ${T.border}`,borderRadius:12,color:T.dim,fontSize:13,cursor:"pointer",padding:"11px",width:"100%",marginBottom:14,fontWeight:600,fontFamily:"'Inter',sans-serif"}}>+ Ajouter une série</button>
+          </>)}
           <input value={note} onChange={e=>setNote(e.target.value)} placeholder="Remarque…" style={{...T.inp,marginBottom:14}}/>
           <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
             <button onClick={submit} style={btn(T.green,"#fff",{padding:"14px",fontSize:14,boxShadow:`0 4px 12px ${T.green}55`})}>✓ Ajouter</button>
@@ -1411,7 +1696,7 @@ function ExModal({initial, onSave, onDelete, onClose}) {
         <div style={{marginBottom:12}}><label style={T.lbl}>NOM</label><input value={f.name} onChange={e=>setF(p=>({...p,name:e.target.value}))} style={T.inp} autoFocus/></div>
         <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:12}}>
           <div><label style={T.lbl}>MUSCLE</label><select value={f.muscle} onChange={e=>setF(p=>({...p,muscle:e.target.value}))} style={{...T.inp,cursor:"pointer"}}>{MUSCLE_GROUPS.map(m=><option key={m}>{m}</option>)}</select></div>
-          <div><label style={T.lbl}>TYPE</label><select value={f.type} onChange={e=>setF(p=>({...p,type:e.target.value}))} style={{...T.inp,cursor:"pointer"}}>{["Push","Pull","Legs","Gainage"].map(t=><option key={t}>{t}</option>)}</select></div>
+          <div><label style={T.lbl}>TYPE</label><select value={f.type} onChange={e=>setF(p=>({...p,type:e.target.value}))} style={{...T.inp,cursor:"pointer"}}>{["Push","Pull","Legs","Gainage","Cardio"].map(t=><option key={t}>{t}</option>)}</select></div>
         </div>
         <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:14}}>
           <div><label style={T.lbl}>MULTIPLICATEUR</label><select value={f.mult} onChange={e=>setF(p=>({...p,mult:Number(e.target.value)}))} style={{...T.inp,cursor:"pointer"}}><option value={1}>×1 — 1 côté</option><option value={2}>×2 — 2 bras</option></select></div>
@@ -1547,7 +1832,9 @@ export default function App() {
   // gets sensible defaults pre-filled in the input fields even if they haven't validated the week yet.
   const todayPlan=useMemo(()=>rawTodayPlan.map(p=>{
     if(p.validatedFor===currentWeekKey) return p;
+    const ex=exDB.find(e=>e.name===p.exo);
     const sug=suggestObjective(p.exo,exDB,logs,p);
+    if(ex?.isCardio) return {...p,objDuration:sug.objDuration,objDistance:sug.objDistance};
     return {...p,objPoids:sug.objPoids,objReps:sug.objReps,objSeries:sug.objSeries};
   }),[rawTodayPlan,currentWeekKey,exDB,logs]);
   const todayLogs=logs.filter(l=>l.date===today);
@@ -1791,6 +2078,14 @@ select{appearance:none;-webkit-appearance:none;background-image:url("data:image/
                 filteredLogs.reduce((acc,log)=>{(acc[log.date]=acc[log.date]||[]).push(log);return acc;},{})
               ).sort((a,b)=>frSort(b[0],a[0])).map(([date,entries])=>{
                 const dateVol=entries.reduce((s,l)=>s+(l.volume||0),0);
+                const dateCardio=entries.filter(l=>l.type==="Cardio"||exDB.find(e=>e.name===l.exo)?.isCardio);
+                const cardioMin=dateCardio.reduce((s,l)=>s+pf(l.duration),0);
+                const cardioKm=dateCardio.reduce((s,l)=>s+pf(l.distance),0);
+                const summary=[
+                  dateVol>0?`${dateVol.toFixed(0)} KG`:null,
+                  cardioMin>0?`${cardioMin}MIN`:null,
+                  cardioKm>0?`${cardioKm.toFixed(1)}KM`:null,
+                ].filter(Boolean).join(" · ");
                 const isOpen = expandedDates.has(date) || logDate===date;
                 const toggle = () => setExpandedDates(prev=>{const n=new Set(prev);if(n.has(date))n.delete(date);else n.add(date);return n;});
                 return(
@@ -1802,7 +2097,7 @@ select{appearance:none;-webkit-appearance:none;background-image:url("data:image/
                         <span style={{fontSize:14,color:T.dim,fontFamily:"'IBM Plex Mono'",fontWeight:800,width:14,display:"inline-block",transition:"transform .15s",transform:isOpen?"rotate(90deg)":"rotate(0)"}}>›</span>
                         <div style={{flex:1,minWidth:0}}>
                           <div style={{fontFamily:"'Bebas Neue'",fontSize:17,letterSpacing:1.5,color:T.text,lineHeight:1}}>{dowOf(date).toUpperCase()} <span style={{color:T.dim,fontSize:13,letterSpacing:.5}}>· {date}</span></div>
-                          <div style={{fontFamily:"'IBM Plex Mono'",fontSize:10,color:T.amber,marginTop:3,fontWeight:800,letterSpacing:.5}}>{dateVol.toFixed(0)} KG · {entries.length} EXO{entries.length>1?"S":""}</div>
+                          <div style={{fontFamily:"'IBM Plex Mono'",fontSize:10,color:T.amber,marginTop:3,fontWeight:800,letterSpacing:.5}}>{summary||"—"} · {entries.length} EXO{entries.length>1?"S":""}</div>
                         </div>
                       </div>
                       <button onClick={(e)=>{e.stopPropagation();setLogAdd({defaultDate:date});}} style={ghostBtn({padding:"7px 10px",fontSize:11,fontFamily:"'Bebas Neue'",letterSpacing:1})}>+ EXO</button>
@@ -1812,7 +2107,8 @@ select{appearance:none;-webkit-appearance:none;background-image:url("data:image/
                       <div style={{background:T.cardHi,border:`1px solid ${T.border}`,borderTop:"none",borderRadius:"0 0 12px 12px",padding:"6px 8px 8px",display:"flex",flexDirection:"column",gap:5}}>
                         {entries.map((log,i)=>{
                           const ex=exDB.find(e=>e.name===log.exo);
-                          const tcc=tc(ex?.type||"Push");
+                          const isCardio = !!ex?.isCardio || log.type==="Cardio";
+                          const tcc=tc(ex?.type||(isCardio?"Cardio":"Push"));
                           return(
                             <div key={i} className="k-row" style={{background:T.card,borderRadius:10,padding:"10px 12px",border:`1px solid ${T.border}`,position:"relative",overflow:"hidden",animationDelay:`${i*30}ms`}}>
                               <div style={{position:"absolute",left:0,top:0,bottom:0,width:3,background:tcc.grad}}/>
@@ -1822,13 +2118,23 @@ select{appearance:none;-webkit-appearance:none;background-image:url("data:image/
                                   {log.note&&<div style={{fontSize:11,color:T.dim,fontFamily:"'IBM Plex Mono'",marginTop:3,fontStyle:"italic",fontWeight:500}}>« {log.note} »</div>}
                                 </div>
                                 <div style={{display:"flex",gap:6,alignItems:"center"}}>
-                                  <div style={{fontFamily:"'IBM Plex Mono'",fontWeight:800,color:tcc.bg,fontSize:12,whiteSpace:"nowrap"}}>{(log.volume||0).toFixed(0)}<span style={{color:T.dim,fontWeight:600}}>kg</span></div>
+                                  {isCardio
+                                    ? <div style={{fontFamily:"'IBM Plex Mono'",fontWeight:800,color:tcc.bg,fontSize:12,whiteSpace:"nowrap"}}>{cardioStr(log)}</div>
+                                    : <div style={{fontFamily:"'IBM Plex Mono'",fontWeight:800,color:tcc.bg,fontSize:12,whiteSpace:"nowrap"}}>{(log.volume||0).toFixed(0)}<span style={{color:T.dim,fontWeight:600}}>kg</span></div>}
                                   <button onClick={()=>setLogEdit(log)} style={{background:T.ghost,border:"none",cursor:"pointer",color:T.dim,fontSize:13,padding:"6px 9px",borderRadius:8,WebkitTapHighlightColor:"transparent"}}>✏️</button>
                                 </div>
                               </div>
-                              <div style={{fontFamily:"'IBM Plex Mono'",fontSize:12,color:T.dim,paddingLeft:6,display:"flex",flexWrap:"wrap",gap:"4px 10px",fontWeight:600}}>
-                                {log.series.map((s,j)=><span key={j}><span style={{color:T.text,fontWeight:800}}>{s.poids}</span><span style={{color:T.faint}}>kg×</span><span style={{color:T.text,fontWeight:800}}>{s.reps}</span></span>)}
-                              </div>
+                              {isCardio?(
+                                pf(log.duration)>0&&pf(log.distance)>0&&(
+                                  <div style={{fontFamily:"'IBM Plex Mono'",fontSize:11,color:T.dim,paddingLeft:6,fontWeight:600}}>
+                                    Allure <span style={{color:T.text,fontWeight:800}}>{(pf(log.distance)*60/pf(log.duration)).toFixed(1)}</span> km/h
+                                  </div>
+                                )
+                              ):(
+                                <div style={{fontFamily:"'IBM Plex Mono'",fontSize:12,color:T.dim,paddingLeft:6,display:"flex",flexWrap:"wrap",gap:"4px 10px",fontWeight:600}}>
+                                  {(log.series||[]).map((s,j)=><span key={j}><span style={{color:T.text,fontWeight:800}}>{s.poids}</span><span style={{color:T.faint}}>kg×</span><span style={{color:T.text,fontWeight:800}}>{s.reps}</span></span>)}
+                                </div>
+                              )}
                             </div>
                           );
                         })}
