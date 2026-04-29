@@ -1757,7 +1757,13 @@ export default function App() {
           Object.entries(data.plans).forEach(([date,exos])=>{const day=dowOf(date);if(!migrated[day])migrated[day]=exos;});
           if(Object.keys(migrated).length>0) setWeekPlan(stamp(migrated));
         }
-        if(data.exDB)  setExDB(data.exDB);
+        if(data.exDB)  {
+          // Re-introduce any built-in exos that were added to INIT_EX after the user last synced
+          // (e.g. cardio exos shipped in a later release). User additions in stored exDB are kept.
+          const names=new Set(data.exDB.map(e=>e.name));
+          const missing=INIT_EX.filter(e=>!names.has(e.name));
+          setExDB(missing.length?[...data.exDB,...missing]:data.exDB);
+        }
         if(data.bw!=null) { setBw(data.bw); setBwInput(String(data.bw)); }
       }
     } catch(e){ console.error("Load error",e); }
