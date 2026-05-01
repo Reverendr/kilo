@@ -480,6 +480,32 @@ function NavIcon({name, size=24}) {
   }
 }
 
+/* ─── EX FLAGS — badges multiplicateur / barre / PDC affichés partout ─────── */
+function ExFlags({ex, bw=0, size="sm"}) {
+  if (!ex) return null;
+  const flags = [];
+  if (ex.mult > 1) flags.push(`×${ex.mult} BRAS`);
+  if (ex.barAdd > 0) flags.push(`+${ex.barAdd}KG BARRE`);
+  if (ex.useBodyweight) flags.push(`PDC${bw?` +${bw}KG`:""}`);
+  if (!flags.length) return null;
+  const fs = size==="lg" ? 10 : 9;
+  const pad = size==="lg" ? "3px 7px" : "2px 6px";
+  return flags.map((f,i)=>(
+    <span key={i} style={{fontSize:fs,fontFamily:"'IBM Plex Mono'",fontWeight:800,letterSpacing:.5,background:T.ghost,color:T.textDim,borderRadius:5,padding:pad,whiteSpace:"nowrap",display:"inline-block",border:`1px solid ${T.border}`}}>{f}</span>
+  ));
+}
+
+// Hint texte : "POIDS AFFICHÉ · ×2 + 20kg BARRE = RÉEL" pour rappeler comment calculer le réel
+function liftHint(ex, bw=0) {
+  if (!ex) return null;
+  const parts = [];
+  if (ex.mult > 1) parts.push(`×${ex.mult}`);
+  if (ex.barAdd > 0) parts.push(`+${ex.barAdd}kg barre`);
+  if (ex.useBodyweight) parts.push(`+${bw}kg PDC`);
+  if (!parts.length) return null;
+  return `Poids affiché ${parts.join(" ")} = réel`;
+}
+
 /* ─── CONFIRM MODAL (réutilisable pour toutes les suppressions) ──────────── */
 function ConfirmModal({title="Confirmer",message,confirmLabel="Supprimer",cancelLabel="Annuler",danger=true,onConfirm,onClose}) {
   return(
@@ -659,8 +685,9 @@ function ExCard({plan, exDB, onLog, todayLogs, allLogs, bw}) {
     <button onClick={()=>setOpen(true)} style={{background:alreadyLogged?T.card:T.cardHi,borderRadius:14,padding:"14px 16px",cursor:"pointer",display:"flex",justifyContent:"space-between",alignItems:"center",border:`1px solid ${alreadyLogged?T.green+"44":T.border}`,marginBottom:10,width:"100%",textAlign:"left",position:"relative",overflow:"hidden",WebkitTapHighlightColor:"transparent",fontFamily:"'Inter',sans-serif"}}>
       <div style={{position:"absolute",left:0,top:0,bottom:0,width:4,background:alreadyLogged?T.green:tcol.grad}}/>
       <div style={{flex:1,paddingLeft:6,minWidth:0}}>
-        <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:4,flexWrap:"wrap"}}>
+        <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:4,flexWrap:"wrap"}}>
           <span style={{fontWeight:800,fontSize:16,color:T.text,letterSpacing:-.2}}>{plan.exo}</span>
+          <ExFlags ex={ex} bw={bw}/>
           {alreadyLogged&&<span style={{fontSize:10,background:T.green+"22",color:T.green,borderRadius:6,padding:"2px 7px",fontWeight:800,letterSpacing:.5}}>VALIDÉ</span>}
         </div>
         <div style={{fontSize:13,color:T.dim,fontFamily:"'IBM Plex Mono'",fontWeight:600}}>
@@ -686,7 +713,7 @@ function ExCard({plan, exDB, onLog, todayLogs, allLogs, bw}) {
           <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:8,flexWrap:"wrap"}}>
             <span style={{fontWeight:900,fontSize:18,color:T.text,letterSpacing:-.3}}>{plan.exo}</span>
             <span style={{fontSize:10,background:tcol.soft,color:col,borderRadius:6,padding:"3px 8px",fontFamily:"'IBM Plex Mono'",fontWeight:800,letterSpacing:.5}}>{ex?.type?.toUpperCase()}</span>
-            {ex?.useBodyweight&&<span style={{fontSize:10,background:T.ghost,color:T.dim,borderRadius:6,padding:"3px 8px",fontFamily:"'IBM Plex Mono'",fontWeight:700}}>PDC +{bw}kg</span>}
+            <ExFlags ex={ex} bw={bw} size="lg"/>
           </div>
           {/* Stats mini-grid */}
           <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:6,marginBottom:14}}>
@@ -707,6 +734,11 @@ function ExCard({plan, exDB, onLog, todayLogs, allLogs, bw}) {
       </div>
 
       <div style={{padding:"0 16px 16px"}}>
+        {liftHint(ex,bw)&&(
+          <div style={{fontSize:10,color:T.faint,fontFamily:"'IBM Plex Mono'",letterSpacing:.5,marginBottom:8,paddingLeft:2,fontWeight:700,fontStyle:"italic"}}>
+            ⓘ {liftHint(ex,bw)}
+          </div>
+        )}
         {/* Column headers */}
         <div style={{display:"grid",gridTemplateColumns:"24px 1fr 1fr 50px 36px",gap:8,marginBottom:6,padding:"0 2px"}}>
           <div/><div style={{...T.lbl,textAlign:"center",marginBottom:0}}>KG</div><div style={{...T.lbl,textAlign:"center",marginBottom:0}}>REPS</div><div style={{...T.lbl,textAlign:"center",marginBottom:0}}>FAIT</div><div/>
@@ -861,7 +893,10 @@ function Planner({weekPlan, setWeekPlan, exDB, allLogs, bw}) {
               <div style={{position:"absolute",left:0,top:6,bottom:6,width:3,background:tcc.grad,borderRadius:2}}/>
               <div style={{flex:1,minWidth:0}}>
                 <div style={{fontWeight:800,fontSize:14,color:T.text,letterSpacing:-.2,lineHeight:1.25}}>{ex.name}</div>
-                <div style={{fontSize:11,color:T.dim,marginTop:4,fontWeight:500,lineHeight:1.3}}>{ex.muscle}{ex.mult>1?` · ×${ex.mult} bras`:""}{ex.barAdd>0?` · +${ex.barAdd}kg`:""}</div>
+                <div style={{display:"flex",alignItems:"center",gap:6,marginTop:5,flexWrap:"wrap"}}>
+                  <span style={{fontSize:11,color:T.dim,fontWeight:500}}>{ex.muscle}</span>
+                  <ExFlags ex={ex} bw={bw}/>
+                </div>
               </div>
               <div style={{textAlign:"right",fontSize:11,fontFamily:"'IBM Plex Mono'",color:T.dim,whiteSpace:"nowrap",lineHeight:1.3,flexShrink:0}}>
                 {ex.isCardio?(s.lastPerf!=="—"&&<div style={{color:tcc.bg,fontWeight:800}}>{s.lastPerf}</div>):(s.bestStr!=="—"&&<div style={{color:T.green,fontWeight:800}}>{s.bestStr}</div>)}
@@ -880,9 +915,17 @@ function Planner({weekPlan, setWeekPlan, exDB, allLogs, bw}) {
     const isCardio = pickedEx.isCardio;
     return(
     <div style={{display:"flex",flexDirection:"column",gap:14}}>
-      <div style={{display:"flex",alignItems:"center",gap:10}}>
-        <button onClick={()=>setStep("addex")} style={ghostBtn({padding:"10px 14px",fontSize:13})}>← Retour</button>
-        <span style={{fontWeight:800,fontSize:18,color:T.text,letterSpacing:-.3,minWidth:0,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{pickedEx.name}</span>
+      <div>
+        <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:6}}>
+          <button onClick={()=>setStep("addex")} style={ghostBtn({padding:"10px 14px",fontSize:13})}>← Retour</button>
+          <span style={{fontWeight:800,fontSize:18,color:T.text,letterSpacing:-.3,minWidth:0,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{pickedEx.name}</span>
+        </div>
+        <div style={{display:"flex",alignItems:"center",gap:6,flexWrap:"wrap",paddingLeft:6}}>
+          <span style={{fontSize:10,background:tcc.soft,color:tcc.bg,borderRadius:5,padding:"3px 7px",fontFamily:"'IBM Plex Mono'",fontWeight:800,letterSpacing:.5}}>{pickedEx.type?.toUpperCase()}</span>
+          <span style={{fontSize:10,color:T.dim,fontFamily:"'IBM Plex Mono'",fontWeight:600}}>{pickedEx.muscle?.toUpperCase()}</span>
+          <ExFlags ex={pickedEx} bw={bw} size="lg"/>
+        </div>
+        {liftHint(pickedEx,bw)&&<div style={{fontSize:11,color:T.faint,fontFamily:"'IBM Plex Mono'",letterSpacing:.3,marginTop:6,paddingLeft:6,fontWeight:600,fontStyle:"italic"}}>ⓘ {liftHint(pickedEx,bw)}</div>}
       </div>
       {/* Historical stats */}
       <div style={{background:T.card,borderRadius:14,padding:"16px 16px 14px",border:`1px solid ${T.border}`,position:"relative",overflow:"hidden"}}>
@@ -1062,7 +1105,10 @@ function Planner({weekPlan, setWeekPlan, exDB, allLogs, bw}) {
                         : <span style={{fontSize:9,background:T.amber+"22",color:T.amber,borderRadius:5,padding:"2px 6px",fontFamily:"'IBM Plex Mono'",fontWeight:800,letterSpacing:.5}}>💡 SUGGÉRÉ</span>
                       }
                     </div>
-                    <div style={{fontSize:11,color:T.dim,marginTop:3,fontFamily:"'IBM Plex Mono'",fontWeight:600}}>{ex?.muscle?.toUpperCase()}</div>
+                    <div style={{display:"flex",alignItems:"center",gap:5,marginTop:4,flexWrap:"wrap"}}>
+                      <span style={{fontSize:11,color:T.dim,fontFamily:"'IBM Plex Mono'",fontWeight:600}}>{ex?.muscle?.toUpperCase()}</span>
+                      <ExFlags ex={ex} bw={bw}/>
+                    </div>
                   </div>
                   <div style={{display:"flex",gap:2}}>
                     <button onClick={()=>{setEditIdx(i);setEditForm(isCardio?{objDuration:String(dispDur||""),objDistance:String(dispDist||"")}:{objPoids:String(dispP||""),objReps:String(dispR||""),objSeries:String(dispS||"")});}} style={{background:T.ghost,border:"none",cursor:"pointer",color:T.dim,fontSize:14,padding:"7px 10px",borderRadius:8,WebkitTapHighlightColor:"transparent"}}>✏️</button>
@@ -1532,11 +1578,13 @@ function LogEditor({log, exDB, onSave, onDelete, onClose, bw}) {
         <div style={{height:4,width:40,background:T.borderHi,borderRadius:2,margin:"0 auto 16px"}}/>
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:16,gap:10}}>
           <div style={{flex:1,minWidth:0}}>
-            <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:4}}>
+            <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:4,flexWrap:"wrap"}}>
               <span style={{fontSize:10,background:tcol.soft,color:tcol.bg,borderRadius:6,padding:"3px 8px",fontFamily:"'IBM Plex Mono'",fontWeight:800,letterSpacing:.5}}>{ex?.type?.toUpperCase()}</span>
+              <ExFlags ex={ex} bw={bw}/>
             </div>
             <div style={{fontWeight:900,fontSize:18,color:T.text,letterSpacing:-.3,lineHeight:1.2}}>{log.exo}</div>
             <div style={{fontSize:12,color:T.dim,fontFamily:"'IBM Plex Mono'",marginTop:4,fontWeight:600}}>{log.date}</div>
+            {!isCardio&&liftHint(ex,bw)&&<div style={{fontSize:10,color:T.faint,fontFamily:"'IBM Plex Mono'",letterSpacing:.3,marginTop:6,fontWeight:600,fontStyle:"italic"}}>ⓘ {liftHint(ex,bw)}</div>}
           </div>
           <button onClick={onClose} style={{background:T.ghost,border:"none",color:T.dim,fontSize:18,cursor:"pointer",borderRadius:10,padding:"8px 11px",WebkitTapHighlightColor:"transparent"}}>✕</button>
         </div>
@@ -1644,7 +1692,11 @@ function LogAddModal({defaultDate, exDB, onSave, onClose, bw}) {
             <div style={{flex:1,minWidth:0}}>
               <button onClick={()=>setStep("pick")} style={{...ghostBtn({padding:"6px 10px",fontSize:12,marginBottom:8})}}>← Changer</button>
               <div style={{fontWeight:900,fontSize:17,color:T.text,letterSpacing:-.2}}>{pickedEx.name}</div>
-              <div style={{fontSize:12,color:T.dim,fontFamily:"'IBM Plex Mono'",marginTop:3,fontWeight:600}}>{date}</div>
+              <div style={{display:"flex",alignItems:"center",gap:6,marginTop:5,flexWrap:"wrap"}}>
+                <span style={{fontSize:12,color:T.dim,fontFamily:"'IBM Plex Mono'",fontWeight:600}}>{date}</span>
+                <ExFlags ex={pickedEx} bw={bw}/>
+              </div>
+              {!pickedEx.isCardio&&liftHint(pickedEx,bw)&&<div style={{fontSize:10,color:T.faint,fontFamily:"'IBM Plex Mono'",letterSpacing:.3,marginTop:6,fontWeight:600,fontStyle:"italic"}}>ⓘ {liftHint(pickedEx,bw)}</div>}
             </div>
             <button onClick={onClose} style={{background:T.ghost,border:"none",color:T.dim,fontSize:18,cursor:"pointer",borderRadius:10,padding:"8px 11px"}}>✕</button>
           </div>
@@ -2121,6 +2173,9 @@ select{appearance:none;-webkit-appearance:none;background-image:url("data:image/
                               <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:6,gap:8,paddingLeft:6}}>
                                 <div style={{flex:1,minWidth:0}}>
                                   <div style={{fontWeight:800,fontSize:14,color:T.text,letterSpacing:-.2}}>{log.exo}</div>
+                                  {ex&&!isCardio&&(ex.mult>1||ex.barAdd>0||ex.useBodyweight)&&(
+                                    <div style={{display:"flex",gap:4,marginTop:4,flexWrap:"wrap"}}><ExFlags ex={ex} bw={pf(log.bw)||0}/></div>
+                                  )}
                                   {log.note&&<div style={{fontSize:11,color:T.dim,fontFamily:"'IBM Plex Mono'",marginTop:3,fontStyle:"italic",fontWeight:500}}>« {log.note} »</div>}
                                 </div>
                                 <div style={{display:"flex",gap:6,alignItems:"center"}}>
