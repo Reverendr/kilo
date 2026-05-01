@@ -790,6 +790,7 @@ function Planner({weekPlan, setWeekPlan, exDB, allLogs, bw}) {
   const [editIdx,setEditIdx]=useState(null);
   const [editForm,setEditForm]=useState({});
   const [showAddDay,setShowAddDay]=useState(false);
+  const [showCopy,setShowCopy]=useState(false);
   const [muscleFilter,setMuscleFilter]=useState("Tous");
   const [confirm,setConfirm]=useState(null); // {title,message,onConfirm}
 
@@ -870,6 +871,21 @@ function Planner({weekPlan, setWeekPlan, exDB, allLogs, bw}) {
 
   const askRemoveDay=(day)=>setConfirm({title:"Supprimer ce jour ?",message:`Le plan du ${day} et ses ${(weekPlan[day]||[]).length} exercices seront supprimés.`,confirmLabel:"Supprimer",onConfirm:()=>removeDay(day)});
   const askRemoveExo=(i,name)=>setConfirm({title:"Retirer l'exercice ?",message:`"${name}" sera retiré du plan ${sel}.`,confirmLabel:"Retirer",onConfirm:()=>set(sel,currPlan.filter((_,j)=>j!==i))});
+
+  const copyPlanTo=(target)=>{
+    const clone=currPlan.map(p=>({...p}));
+    setWeekPlan(prev=>({...prev,[target]:clone}));
+    setShowCopy(false);
+    setSel(target);
+  };
+  const askCopyTo=(target)=>{
+    const existing=(weekPlan[target]||[]).length;
+    if(existing>0){
+      setConfirm({title:"Écraser le plan ?",message:`${target} contient déjà ${existing} exercice${existing>1?"s":""}. Le plan de ${sel} (${currPlan.length} exo${currPlan.length>1?"s":""}) le remplacera.`,confirmLabel:"Écraser",onConfirm:()=>copyPlanTo(target)});
+    } else {
+      copyPlanTo(target);
+    }
+  };
 
   // Step: choose exercise
   if(step==="addex") return(
@@ -1029,10 +1045,23 @@ function Planner({weekPlan, setWeekPlan, exDB, allLogs, bw}) {
         </div>
         <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
           <button onClick={()=>askRegen(sel)} title="Régénérer les objectifs" style={ghostBtn({padding:"11px 12px",fontSize:14,color:T.amber,borderColor:T.amber+"55"})}>↻</button>
+          <button onClick={()=>setShowCopy(v=>!v)} title="Dupliquer ce plan vers un autre jour" disabled={currPlan.length===0} style={ghostBtn({padding:"11px 12px",fontSize:14,color:currPlan.length===0?T.faint:T.dim,opacity:currPlan.length===0?.4:1})}>⎘</button>
           <button onClick={()=>setStep("addex")} style={btn(T.red,"#fff",{padding:"11px 16px",fontSize:13,boxShadow:`0 4px 12px ${T.red}44`})}>+ EXERCICE</button>
           <button onClick={()=>askRemoveDay(sel)} style={ghostBtn({padding:"11px 12px",fontSize:16,color:T.faint})}>🗑</button>
         </div>
       </div>
+      {showCopy&&currPlan.length>0&&(
+        <div style={{background:T.cardHi,border:`1px solid ${T.border}`,borderRadius:12,padding:"10px 12px",marginBottom:14,display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>
+          <span style={{fontSize:11,color:T.dim,fontFamily:"'IBM Plex Mono'",letterSpacing:.5,fontWeight:700}}>COPIER VERS</span>
+          {DAYS_OF_WEEK.filter(d=>d!==sel).map(d=>{
+            const has=(weekPlan[d]||[]).length>0;
+            return(
+              <button key={d} onClick={()=>askCopyTo(d)} style={{background:has?T.ghost:T.card2,color:has?T.amber:T.textDim,border:`1px ${has?"solid":"dashed"} ${has?T.amber+"55":T.borderHi}`,borderRadius:9,padding:"7px 11px",fontFamily:"'Bebas Neue'",fontSize:12,letterSpacing:1,cursor:"pointer",WebkitTapHighlightColor:"transparent"}} title={has?`${d} contient déjà ${(weekPlan[d]||[]).length} exo`:`Créer le plan ${d}`}>{d.toUpperCase().slice(0,3)}{has?"*":""}</button>
+            );
+          })}
+          <button onClick={()=>setShowCopy(false)} style={ghostBtn({padding:"7px 10px",fontSize:11,color:T.faint})}>✕</button>
+        </div>
+      )}
 
       {currPlan.length===0?(
         <div style={{textAlign:"center",padding:32,color:T.dim,fontSize:14}}>Aucun exercice. Appuyez sur "+ Exercice".</div>
@@ -1782,6 +1811,7 @@ export default function App() {
   const [logs,setLogs]=useState(INIT_LOGS);
   const [logSearch,setLogSearch]=useState("");
   const [logDate,setLogDate]=useState("Tous");
+  const [logType,setLogType]=useState("Tous");
   const [expandedDates,setExpandedDates]=useState(()=>new Set());
   const [exSearch,setExSearch]=useState("");
   const [bw,setBw]=useState(80);
@@ -1908,7 +1938,44 @@ export default function App() {
   },[]);
 
   const logDates=["Tous",...new Set(logs.map(l=>l.date))].sort((a,b)=>a==="Tous"?-1:frSort(b,a));
-  const filteredLogs=useMemo(()=>logs.filter(l=>(!logSearch||l.exo.toLowerCase().includes(logSearch.toLowerCase()))&&(logDate==="Tous"||l.date===logDate)).sort((a,b)=>frSort(b.date,a.date)),[logs,logSearch,logDate]);
+  const filteredLogs=useMemo(()=>{
+    const q=logSearch.trim().toLowerCase();
+    return logs.filter(l=>{
+      if(logDate!=="Tous"&&l.date!==logDate)return false;
+      if(logType!=="Tous"){
+        const ex=exDB.find(e=>e.name===l.exo);
+        const t=ex?.type||l.type||"Push";
+        if(t!==logType)return false;
+      }
+      if(q){
+        const ex=exDB.find(e=>e.name===l.exo);
+        const hay=`${l.exo} ${l.muscle||""} ${ex?.muscle||""} ${l.note||""}`.toLowerCase();
+        if(!hay.includes(q))return false;
+      }
+      return true;
+    }).sort((a,b)=>frSort(b.date,a.date));
+  },[logs,logSearch,logDate,logType,exDB]);
+
+  // PR detection — chronological walk, score = realW × reps per single set; mark logs that set a new exo high
+  const prSet=useMemo(()=>{
+    const sorted=[...logs].sort((a,b)=>frSort(a.date,b.date));
+    const running={};
+    const set=new Set();
+    for(const l of sorted){
+      const ex=exDB.find(e=>e.name===l.exo);
+      if(!ex||ex.isCardio||l.type==="Cardio")continue;
+      let maxScore=0;
+      (l.series||[]).forEach(s=>{
+        const sc=realW(s.poids,ex,bw)*pf(s.reps);
+        if(sc>maxScore)maxScore=sc;
+      });
+      if(maxScore>0&&(!running[l.exo]||maxScore>running[l.exo]+0.001)){
+        running[l.exo]=maxScore;
+        set.add(l.date+"|"+l.exo);
+      }
+    }
+    return set;
+  },[logs,exDB,bw]);
   const filteredExDB=useMemo(()=>exDB.filter(e=>e.name.toLowerCase().includes(exSearch.toLowerCase())||e.muscle.toLowerCase().includes(exSearch.toLowerCase())),[exDB,exSearch]);
 
   const typeColors=Object.entries(TYPE_COLORS);
@@ -2113,11 +2180,19 @@ select{appearance:none;-webkit-appearance:none;background-image:url("data:image/
               </div>
               <button onClick={()=>setLogAdd({defaultDate:todayFR()})} style={btn(T.green,"#fff",{padding:"11px 16px",fontSize:13,boxShadow:`0 4px 12px ${T.green}55`})}>+ AJOUTER</button>
             </div>
-            <div style={{display:"flex",gap:8,marginBottom:14}}>
-              <input value={logSearch} onChange={e=>setLogSearch(e.target.value)} placeholder="Rechercher un exercice…" style={{...T.inp,flex:1,fontSize:14}}/>
+            <div style={{display:"flex",gap:8,marginBottom:8}}>
+              <input value={logSearch} onChange={e=>setLogSearch(e.target.value)} placeholder="Exo, muscle, remarque…" style={{...T.inp,flex:1,fontSize:14}}/>
               <select value={logDate} onChange={e=>setLogDate(e.target.value)} style={{...T.inp,flex:"0 0 130px",fontSize:12,cursor:"pointer"}}>
                 {logDates.map(d=><option key={d}>{d}</option>)}
               </select>
+            </div>
+            <div style={{display:"flex",gap:5,marginBottom:14,flexWrap:"wrap",alignItems:"center"}}>
+              {["Tous","Push","Pull","Legs","Gainage","Cardio"].map(t=>(
+                <button key={t} onClick={()=>setLogType(t)} style={{background:logType===t?(t==="Tous"?T.text:tc(t).bg):T.ghost,color:logType===t?(t==="Tous"?T.bg:"#fff"):T.textDim,border:"none",borderRadius:8,padding:"6px 11px",fontSize:10,cursor:"pointer",fontFamily:"'IBM Plex Mono'",fontWeight:800,letterSpacing:.5,WebkitTapHighlightColor:"transparent"}}>{t.toUpperCase()}</button>
+              ))}
+              {(logSearch||logDate!=="Tous"||logType!=="Tous")&&(
+                <button onClick={()=>{setLogSearch("");setLogDate("Tous");setLogType("Tous");}} style={ghostBtn({padding:"6px 10px",fontSize:10,fontFamily:"'IBM Plex Mono'",letterSpacing:.5,fontWeight:700,color:T.faint})}>✕ RESET</button>
+              )}
             </div>
             {filteredLogs.length===0&&(
               <div style={{textAlign:"center",padding:"48px 20px",color:T.dim,fontSize:14}}>
@@ -2167,12 +2242,16 @@ select{appearance:none;-webkit-appearance:none;background-image:url("data:image/
                           const ex=exDB.find(e=>e.name===log.exo);
                           const isCardio = !!ex?.isCardio || log.type==="Cardio";
                           const tcc=tc(ex?.type||(isCardio?"Cardio":"Push"));
+                          const isPR = prSet.has(log.date+"|"+log.exo);
                           return(
-                            <div key={i} className="k-row" style={{background:T.card,borderRadius:10,padding:"10px 12px",border:`1px solid ${T.border}`,position:"relative",overflow:"hidden",animationDelay:`${i*30}ms`}}>
+                            <div key={i} className="k-row" style={{background:T.card,borderRadius:10,padding:"10px 12px",border:`1px solid ${isPR?T.amber+"66":T.border}`,position:"relative",overflow:"hidden",animationDelay:`${i*30}ms`,boxShadow:isPR?`0 0 0 1px ${T.amber}33, 0 2px 10px ${T.amber}1f`:"none"}}>
                               <div style={{position:"absolute",left:0,top:0,bottom:0,width:3,background:tcc.grad}}/>
                               <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:6,gap:8,paddingLeft:6}}>
                                 <div style={{flex:1,minWidth:0}}>
-                                  <div style={{fontWeight:800,fontSize:14,color:T.text,letterSpacing:-.2}}>{log.exo}</div>
+                                  <div style={{display:"flex",alignItems:"center",gap:6,flexWrap:"wrap"}}>
+                                    <span style={{fontWeight:800,fontSize:14,color:T.text,letterSpacing:-.2}}>{log.exo}</span>
+                                    {isPR&&<span title="Record personnel" style={{fontSize:9,background:`linear-gradient(135deg, ${T.amber}, #fbbf24)`,color:"#1a1a00",borderRadius:5,padding:"2px 7px",fontFamily:"'IBM Plex Mono'",fontWeight:900,letterSpacing:.5,boxShadow:`0 2px 8px ${T.amber}55`,whiteSpace:"nowrap"}}>🏆 PR</span>}
+                                  </div>
                                   {ex&&!isCardio&&(ex.mult>1||ex.barAdd>0||ex.useBodyweight)&&(
                                     <div style={{display:"flex",gap:4,marginTop:4,flexWrap:"wrap"}}><ExFlags ex={ex} bw={pf(log.bw)||0}/></div>
                                   )}
