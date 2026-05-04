@@ -878,13 +878,66 @@ function Planner({weekPlan, setWeekPlan, exDB, allLogs, bw}) {
     setShowCopy(false);
     setSel(target);
   };
-  const moveExo=(i,dir)=>{
-    const j=i+dir;
-    if(j<0||j>=currPlan.length)return;
-    const next=[...currPlan];
-    [next[i],next[j]]=[next[j],next[i]];
-    set(sel,next);
+
+  // ── Drag-and-drop (pointer events, mobile + desktop) ─────────────────────
+  const dragState=useRef({i:null,startY:0});
+  const [dragIdx,setDragIdx]=useState(null);
+  const [dragOffset,setDragOffset]=useState(0);
+  const cardRefs=useRef([]);
+
+  const startDrag=(e,i)=>{
+    if(editIdx!==null)return;
+    e.preventDefault();
+    e.stopPropagation();
+    const y=e.clientY ?? e.touches?.[0]?.clientY ?? 0;
+    dragState.current={i,startY:y};
+    setDragIdx(i);
+    setDragOffset(0);
   };
+
+  useEffect(()=>{
+    if(dragIdx===null)return;
+    const onMove=e=>{
+      if(dragState.current.i===null)return;
+      const cy=e.clientY ?? e.touches?.[0]?.clientY;
+      if(cy==null)return;
+      const i=dragState.current.i;
+      setDragOffset(cy-dragState.current.startY);
+      for(let j=0;j<cardRefs.current.length;j++){
+        if(j===i)continue;
+        const el=cardRefs.current[j];
+        if(!el)continue;
+        const r=el.getBoundingClientRect();
+        if(cy>=r.top&&cy<=r.bottom){
+          setWeekPlan(prev=>{
+            const arr=[...(prev[sel]||[])];
+            if(i>=arr.length)return prev;
+            const [moved]=arr.splice(i,1);
+            arr.splice(j,0,moved);
+            return {...prev,[sel]:arr};
+          });
+          dragState.current.i=j;
+          dragState.current.startY=cy;
+          setDragIdx(j);
+          setDragOffset(0);
+          break;
+        }
+      }
+    };
+    const onEnd=()=>{
+      dragState.current={i:null,startY:0};
+      setDragIdx(null);
+      setDragOffset(0);
+    };
+    document.addEventListener("pointermove",onMove,{passive:false});
+    document.addEventListener("pointerup",onEnd);
+    document.addEventListener("pointercancel",onEnd);
+    return ()=>{
+      document.removeEventListener("pointermove",onMove);
+      document.removeEventListener("pointerup",onEnd);
+      document.removeEventListener("pointercancel",onEnd);
+    };
+  },[dragIdx,sel,setWeekPlan]);
   const askCopyTo=(target)=>{
     const existing=(weekPlan[target]||[]).length;
     if(existing>0){
@@ -1128,8 +1181,9 @@ function Planner({weekPlan, setWeekPlan, exDB, allLogs, bw}) {
                 </div>
               );
             }
+            const isDragging=dragIdx===i;
             return(
-              <div key={i} style={{background:T.card,borderRadius:14,padding:"12px 14px",border:`1px solid ${validated?T.border:T.amber+"33"}`,position:"relative",overflow:"hidden"}}>
+              <div key={i} ref={el=>{cardRefs.current[i]=el;}} style={{background:T.card,borderRadius:14,padding:"12px 14px",border:`1px solid ${isDragging?T.red+"88":validated?T.border:T.amber+"33"}`,position:"relative",overflow:"hidden",transform:isDragging?`translateY(${dragOffset}px) scale(1.02)`:"none",zIndex:isDragging?20:1,opacity:isDragging?.92:1,boxShadow:isDragging?`0 12px 30px rgba(0,0,0,.55), 0 0 0 1px ${T.red}55`:"none",transition:isDragging?"none":"transform .18s ease, box-shadow .18s ease, opacity .18s ease",cursor:isDragging?"grabbing":"default",touchAction:isDragging?"none":"auto"}}>
                 <div style={{position:"absolute",left:0,top:0,bottom:0,width:3,background:tcc.grad}}/>
                 <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:8,paddingLeft:6}}>
                   <div style={{flex:1,minWidth:0}}>
@@ -1146,11 +1200,14 @@ function Planner({weekPlan, setWeekPlan, exDB, allLogs, bw}) {
                       <ExFlags ex={ex} bw={bw}/>
                     </div>
                   </div>
-                  <div style={{display:"flex",gap:2,flexWrap:"wrap",justifyContent:"flex-end"}}>
-                    <button onClick={()=>moveExo(i,-1)} disabled={i===0} title="Monter" style={{background:"transparent",border:"none",cursor:i===0?"default":"pointer",color:i===0?T.faint+"55":T.dim,fontSize:14,padding:"7px 8px",borderRadius:8,WebkitTapHighlightColor:"transparent",fontWeight:800}}>▲</button>
-                    <button onClick={()=>moveExo(i,1)} disabled={i===currPlan.length-1} title="Descendre" style={{background:"transparent",border:"none",cursor:i===currPlan.length-1?"default":"pointer",color:i===currPlan.length-1?T.faint+"55":T.dim,fontSize:14,padding:"7px 8px",borderRadius:8,WebkitTapHighlightColor:"transparent",fontWeight:800}}>▼</button>
+                  <div style={{display:"flex",gap:2,alignItems:"center"}}>
                     <button onClick={()=>{setEditIdx(i);setEditForm(isCardio?{objDuration:String(dispDur||""),objDistance:String(dispDist||"")}:{objPoids:String(dispP||""),objReps:String(dispR||""),objSeries:String(dispS||"")});}} style={{background:T.ghost,border:"none",cursor:"pointer",color:T.dim,fontSize:14,padding:"7px 10px",borderRadius:8,WebkitTapHighlightColor:"transparent"}}>✏️</button>
                     <button onClick={()=>askRemoveExo(i,p.exo)} style={{background:T.ghost,border:"none",cursor:"pointer",color:T.faint,fontSize:18,padding:"7px 10px",borderRadius:8,WebkitTapHighlightColor:"transparent"}}>×</button>
+                    <div onPointerDown={e=>startDrag(e,i)} title="Glisser pour réorganiser" style={{cursor:isDragging?"grabbing":"grab",color:T.dim,padding:"8px 6px",borderRadius:8,touchAction:"none",userSelect:"none",WebkitUserSelect:"none",display:"flex",flexDirection:"column",justifyContent:"center",alignItems:"center",gap:2,background:isDragging?T.red+"22":"transparent"}}>
+                      <span style={{display:"block",width:14,height:2,background:"currentColor",borderRadius:1,opacity:.85}}/>
+                      <span style={{display:"block",width:14,height:2,background:"currentColor",borderRadius:1,opacity:.85}}/>
+                      <span style={{display:"block",width:14,height:2,background:"currentColor",borderRadius:1,opacity:.85}}/>
+                    </div>
                   </div>
                 </div>
                 <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:6,marginTop:10,paddingLeft:6}}>
