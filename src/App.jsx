@@ -878,6 +878,13 @@ function Planner({weekPlan, setWeekPlan, exDB, allLogs, bw}) {
     setShowCopy(false);
     setSel(target);
   };
+  const moveExo=(i,dir)=>{
+    const j=i+dir;
+    if(j<0||j>=currPlan.length)return;
+    const next=[...currPlan];
+    [next[i],next[j]]=[next[j],next[i]];
+    set(sel,next);
+  };
   const askCopyTo=(target)=>{
     const existing=(weekPlan[target]||[]).length;
     if(existing>0){
@@ -1139,7 +1146,9 @@ function Planner({weekPlan, setWeekPlan, exDB, allLogs, bw}) {
                       <ExFlags ex={ex} bw={bw}/>
                     </div>
                   </div>
-                  <div style={{display:"flex",gap:2}}>
+                  <div style={{display:"flex",gap:2,flexWrap:"wrap",justifyContent:"flex-end"}}>
+                    <button onClick={()=>moveExo(i,-1)} disabled={i===0} title="Monter" style={{background:"transparent",border:"none",cursor:i===0?"default":"pointer",color:i===0?T.faint+"55":T.dim,fontSize:14,padding:"7px 8px",borderRadius:8,WebkitTapHighlightColor:"transparent",fontWeight:800}}>▲</button>
+                    <button onClick={()=>moveExo(i,1)} disabled={i===currPlan.length-1} title="Descendre" style={{background:"transparent",border:"none",cursor:i===currPlan.length-1?"default":"pointer",color:i===currPlan.length-1?T.faint+"55":T.dim,fontSize:14,padding:"7px 8px",borderRadius:8,WebkitTapHighlightColor:"transparent",fontWeight:800}}>▼</button>
                     <button onClick={()=>{setEditIdx(i);setEditForm(isCardio?{objDuration:String(dispDur||""),objDistance:String(dispDist||"")}:{objPoids:String(dispP||""),objReps:String(dispR||""),objSeries:String(dispS||"")});}} style={{background:T.ghost,border:"none",cursor:"pointer",color:T.dim,fontSize:14,padding:"7px 10px",borderRadius:8,WebkitTapHighlightColor:"transparent"}}>✏️</button>
                     <button onClick={()=>askRemoveExo(i,p.exo)} style={{background:T.ghost,border:"none",cursor:"pointer",color:T.faint,fontSize:18,padding:"7px 10px",borderRadius:8,WebkitTapHighlightColor:"transparent"}}>×</button>
                   </div>
