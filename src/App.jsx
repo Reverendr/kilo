@@ -480,6 +480,88 @@ function NavIcon({name, size=24}) {
   }
 }
 
+/* ─── ACTION ICONS — single SVG path style, currentColor, 1.9 stroke ─────── */
+function Icon({name, size=16, strokeWidth=1.9}) {
+  const c = {width:size, height:size, viewBox:"0 0 24 24", fill:"none", stroke:"currentColor", strokeWidth, strokeLinecap:"round", strokeLinejoin:"round", style:{flexShrink:0, display:"block"}};
+  switch(name) {
+    case "edit":
+      return(<svg {...c}><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 1 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>);
+    case "trash":
+      return(<svg {...c}><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v2"/></svg>);
+    case "close":
+      return(<svg {...c}><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>);
+    case "check":
+      return(<svg {...c}><polyline points="20 6 9 17 4 12"/></svg>);
+    case "plus":
+      return(<svg {...c}><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>);
+    case "refresh":
+      return(<svg {...c}><path d="M21 12a9 9 0 1 1-3-6.7"/><polyline points="21 3 21 9 15 9"/></svg>);
+    case "copy":
+      return(<svg {...c}><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>);
+    case "save":
+      return(<svg {...c}><path d="M16 16l-4-4-4 4"/><line x1="12" y1="12" x2="12" y2="21"/><path d="M20.4 18.4A5 5 0 0 0 18 9h-1.3A8 8 0 1 0 3 16.3"/></svg>);
+    case "timer":
+      return(<svg {...c}><circle cx="12" cy="13" r="8"/><path d="M12 9v4l2.5 2.5"/><line x1="9" y1="2" x2="15" y2="2"/></svg>);
+    case "chevron":
+      return(<svg {...c}><polyline points="9 18 15 12 9 6"/></svg>);
+    case "back":
+      return(<svg {...c}><polyline points="15 18 9 12 15 6"/></svg>);
+    case "info":
+      return(<svg {...c}><circle cx="12" cy="12" r="10"/><line x1="12" y1="11" x2="12" y2="16"/><circle cx="12" cy="8" r=".7" fill="currentColor" stroke="none"/></svg>);
+    case "trophy":
+      return(<svg {...c}><path d="M8 21h8"/><path d="M12 17v4"/><path d="M7 4h10v6a5 5 0 0 1-10 0V4z"/><path d="M17 5h3v2a3 3 0 0 1-3 3"/><path d="M7 5H4v2a3 3 0 0 0 3 3"/></svg>);
+    case "spin":
+      return(<svg {...c}><path d="M21 12a9 9 0 1 1-6.2-8.56"/></svg>);
+    case "play":
+      return(<svg {...c}><polygon points="6 4 20 12 6 20 6 4" fill="currentColor"/></svg>);
+    case "pause":
+      return(<svg {...c}><rect x="6" y="4" width="4" height="16" rx="1" fill="currentColor"/><rect x="14" y="4" width="4" height="16" rx="1" fill="currentColor"/></svg>);
+    case "alert":
+      return(<svg {...c}><path d="M10.3 3.9L1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/><line x1="12" y1="9" x2="12" y2="13"/><circle cx="12" cy="16.2" r=".5" fill="currentColor"/></svg>);
+    case "dot":
+      return(<svg {...c}><circle cx="12" cy="12" r="3" fill="currentColor" stroke="none"/></svg>);
+    case "grip":
+      return(<svg {...c}><circle cx="9" cy="6" r="1.4" fill="currentColor" stroke="none"/><circle cx="9" cy="12" r="1.4" fill="currentColor" stroke="none"/><circle cx="9" cy="18" r="1.4" fill="currentColor" stroke="none"/><circle cx="15" cy="6" r="1.4" fill="currentColor" stroke="none"/><circle cx="15" cy="12" r="1.4" fill="currentColor" stroke="none"/><circle cx="15" cy="18" r="1.4" fill="currentColor" stroke="none"/></svg>);
+    default: return null;
+  }
+}
+
+/* ─── ICON BUTTON — square 36px, ghost by default, danger/primary variants ── */
+function IconBtn({icon, onClick, title, variant="ghost", size=16, disabled=false, active=false, style={}, spinning=false, type="button"}) {
+  const palettes = {
+    ghost:   {bg:"transparent",       border:T.border,        color:T.dim,    hoverBg:T.ghost},
+    solid:   {bg:T.ghost,             border:T.border,        color:T.textDim,hoverBg:T.cardHi},
+    danger:  {bg:"transparent",       border:T.red+"33",      color:T.red,    hoverBg:T.red+"14"},
+    warning: {bg:"transparent",       border:T.amber+"44",    color:T.amber,  hoverBg:T.amber+"14"},
+    success: {bg:"transparent",       border:T.green+"44",    color:T.green,  hoverBg:T.green+"14"},
+    primary: {bg:T.red,               border:T.red,           color:"#fff",   hoverBg:T.red},
+    accent:  {bg:T.red+"15",          border:T.red+"55",      color:T.red,    hoverBg:T.red+"22"},
+  };
+  const p = palettes[variant] || palettes.ghost;
+  return(
+    <button type={type} onClick={onClick} title={title} disabled={disabled||spinning} style={{
+      background: active ? T.cardHi : p.bg,
+      color: p.color,
+      border: `1px solid ${active ? T.borderHi : p.border}`,
+      borderRadius: 10,
+      width: 36, height: 36,
+      display: "inline-flex",
+      alignItems: "center", justifyContent: "center",
+      cursor: disabled?"default":(spinning?"wait":"pointer"),
+      opacity: disabled?.35:1,
+      WebkitTapHighlightColor: "transparent",
+      transition: "background .15s, border-color .15s, color .15s, transform .12s",
+      padding: 0,
+      flexShrink: 0,
+      ...style,
+    }}>
+      <span className={spinning?"k-spin":""} style={{display:"inline-flex",alignItems:"center",justifyContent:"center"}}>
+        <Icon name={spinning?"spin":icon} size={size}/>
+      </span>
+    </button>
+  );
+}
+
 /* ─── EX FLAGS — badges multiplicateur / barre / PDC affichés partout ─────── */
 function ExFlags({ex, bw=0, size="sm"}) {
   if (!ex) return null;
@@ -544,7 +626,9 @@ function Timer({onClose}) {
           {P.map(s=><button key={s} onClick={()=>go(s)} style={{background:t===s&&(run||done)?T.text:T.ghost,color:t===s&&(run||done)?T.bg:T.textDim,border:"none",borderRadius:10,padding:"10px 0",fontFamily:"'IBM Plex Mono'",fontSize:12,cursor:"pointer",fontWeight:700,letterSpacing:.5,WebkitTapHighlightColor:"transparent"}}>{s<60?`${s}s`:`${s/60}m`}</button>)}
         </div>
         <div style={{display:"grid",gridTemplateColumns:run?"1fr 1fr":"2fr 1fr",gap:8}}>
-          {run?<button onClick={()=>{clearInterval(iv.current);setRun(false);}} style={btn(T.ghost,T.text,{padding:"14px",fontSize:15})}>⏸ Pause</button>:<button onClick={()=>go(t)} style={btn(accent,"#fff",{padding:"14px",fontSize:15,boxShadow:`0 4px 16px ${accent}66`})}>▶ Démarrer</button>}
+          {run
+            ? <button onClick={()=>{clearInterval(iv.current);setRun(false);}} style={btn(T.ghost,T.text,{padding:"14px",fontSize:15,display:"inline-flex",alignItems:"center",justifyContent:"center",gap:8})}><Icon name="pause" size={14}/> Pause</button>
+            : <button onClick={()=>go(t)} style={btn(accent,"#fff",{padding:"14px",fontSize:15,boxShadow:`0 4px 16px ${accent}66`,display:"inline-flex",alignItems:"center",justifyContent:"center",gap:8})}><Icon name="play" size={14}/> Démarrer</button>}
           <button onClick={onClose} style={ghostBtn({padding:"14px",fontSize:15})}>Fermer</button>
         </div>
       </div>
@@ -591,7 +675,7 @@ function CardioCard({plan, ex, onLog, todayLogs, allLogs}) {
           {plan.objDistance>0&&<><span style={{margin:"0 6px",color:T.faint}}>·</span><span style={{color:col}}>{plan.objDistance}km</span></>}
         </div>
       </div>
-      <span style={{color:T.faint,fontSize:24,paddingLeft:8,fontWeight:300}}>›</span>
+      <span style={{color:T.faint,paddingLeft:8,display:"inline-flex",alignItems:"center"}}><Icon name="chevron" size={18}/></span>
     </button>
   );
 
@@ -618,7 +702,7 @@ function CardioCard({plan, ex, onLog, todayLogs, allLogs}) {
             ))}
           </div>
         </div>
-        <button onClick={()=>setOpen(false)} style={{background:T.ghost,border:"none",color:T.dim,cursor:"pointer",fontSize:18,padding:"8px 10px",borderRadius:10,WebkitTapHighlightColor:"transparent"}}>✕</button>
+        <IconBtn icon="close" onClick={()=>setOpen(false)} title="Fermer" style={{width:32,height:32,borderRadius:8}}/>
       </div>
 
       <div style={{padding:"0 16px 16px"}}>
@@ -640,8 +724,8 @@ function CardioCard({plan, ex, onLog, todayLogs, allLogs}) {
           </div>
         )}
         <input value={note} onChange={e=>setNote(e.target.value)} placeholder="Remarque…" style={{...T.inp,marginBottom:14,fontSize:14}}/>
-        <button onClick={doLog} disabled={!filled} style={{...btn(col,"#fff"),width:"100%",padding:"16px",fontSize:16,opacity:filled?1:.4,boxShadow:filled?`0 4px 16px ${col}55`:"none",fontWeight:800,letterSpacing:.3}}>
-          {alreadyLogged?"↻ RE-VALIDER":"✓ VALIDER LA SÉANCE"}
+        <button onClick={doLog} disabled={!filled} style={{...btn(col,"#fff"),width:"100%",padding:"16px",fontSize:16,opacity:filled?1:.4,boxShadow:filled?`0 4px 16px ${col}55`:"none",fontWeight:800,letterSpacing:.3,display:"inline-flex",alignItems:"center",justifyContent:"center",gap:8}}>
+          <Icon name={alreadyLogged?"refresh":"check"} size={16}/> {alreadyLogged?"Re-valider":"Valider la séance"}
         </button>
       </div>
     </div>
@@ -699,7 +783,7 @@ function ExCard({plan, exDB, onLog, todayLogs, allLogs, bw}) {
           {!alreadyLogged&&nDone>0&&<span style={{marginLeft:10,color:col,fontWeight:800}}>· {nDone}/{series.length}</span>}
         </div>
       </div>
-      <span style={{color:T.faint,fontSize:24,paddingLeft:8,fontWeight:300}}>›</span>
+      <span style={{color:T.faint,paddingLeft:8,display:"inline-flex",alignItems:"center"}}><Icon name="chevron" size={18}/></span>
     </button>
   );
 
@@ -730,7 +814,7 @@ function ExCard({plan, exDB, onLog, todayLogs, allLogs, bw}) {
             ))}
           </div>
         </div>
-        <button onClick={()=>setOpen(false)} style={{background:T.ghost,border:"none",color:T.dim,cursor:"pointer",fontSize:18,padding:"8px 10px",borderRadius:10,WebkitTapHighlightColor:"transparent"}}>✕</button>
+        <IconBtn icon="close" onClick={()=>setOpen(false)} title="Fermer" style={{width:32,height:32,borderRadius:8}}/>
       </div>
 
       <div style={{padding:"0 16px 16px"}}>
@@ -750,29 +834,29 @@ function ExCard({plan, exDB, onLog, todayLogs, allLogs, bw}) {
               style={{...T.inp,fontSize:22,fontWeight:900,textAlign:"center",color:s.done?T.green:T.text,borderColor:s.done?T.green+"66":T.border,padding:"14px 4px",background:s.done?T.green+"0e":T.card2}}/>
             <input type="number" inputMode="numeric" value={s.reps} onChange={e=>upd(i,"reps",e.target.value)} placeholder={String(plan.objReps)}
               style={{...T.inp,fontSize:22,fontWeight:900,textAlign:"center",color:s.done?T.green:T.text,borderColor:s.done?T.green+"66":T.border,padding:"14px 4px",background:s.done?T.green+"0e":T.card2}}/>
-            <button onClick={()=>tog(i)} style={{background:s.done?T.green:"transparent",border:`2px solid ${s.done?T.green:T.borderHi}`,borderRadius:12,cursor:"pointer",fontSize:22,color:s.done?"#fff":T.faint,display:"flex",alignItems:"center",justifyContent:"center",padding:0,height:50,WebkitTapHighlightColor:"transparent",transition:"all .15s",fontWeight:800}}>
-              {s.done?"✓":""}
+            <button onClick={()=>tog(i)} style={{background:s.done?T.green:"transparent",border:`2px solid ${s.done?T.green:T.borderHi}`,borderRadius:12,cursor:"pointer",color:s.done?"#fff":T.faint,display:"flex",alignItems:"center",justifyContent:"center",padding:0,height:50,WebkitTapHighlightColor:"transparent",transition:"all .15s"}}>
+              {s.done?<Icon name="check" size={20} strokeWidth={2.5}/>:null}
             </button>
-            <button onClick={()=>setSeries(p=>p.filter((_,j)=>j!==i))} style={{background:"transparent",border:"none",cursor:"pointer",color:T.faint,fontSize:22,height:50,WebkitTapHighlightColor:"transparent"}}>×</button>
+            <button onClick={()=>setSeries(p=>p.filter((_,j)=>j!==i))} style={{background:"transparent",border:"none",cursor:"pointer",color:T.faint,height:50,WebkitTapHighlightColor:"transparent",display:"flex",alignItems:"center",justifyContent:"center"}}><Icon name="close" size={16}/></button>
           </div>
         ))}
         <button onClick={()=>setSeries(p=>[...p,{poids:p[p.length-1]?.poids||String(plan.objPoids||""),reps:"",done:false}])}
-          style={{background:"transparent",border:`1.5px dashed ${T.border}`,borderRadius:12,color:T.dim,fontSize:13,cursor:"pointer",padding:"11px",width:"100%",marginBottom:14,fontFamily:"'Inter',sans-serif",fontWeight:600,WebkitTapHighlightColor:"transparent"}}>
-          + Ajouter une série
+          style={{background:"transparent",border:`1.5px dashed ${T.border}`,borderRadius:12,color:T.dim,fontSize:13,cursor:"pointer",padding:"11px",width:"100%",marginBottom:14,fontFamily:"'Inter',sans-serif",fontWeight:600,WebkitTapHighlightColor:"transparent",display:"inline-flex",alignItems:"center",justifyContent:"center",gap:6}}>
+          <Icon name="plus" size={14}/> Ajouter une série
         </button>
         {vol>0&&(
           <div style={{marginBottom:14,background:T.card2,borderRadius:12,padding:"10px 12px",border:`1px solid ${T.border}`}}>
             <div style={{display:"flex",justifyContent:"space-between",marginBottom:7,fontSize:13,fontWeight:700}}>
               <span style={{color:T.textDim}}>Volume <strong style={{color:col,fontFamily:"'IBM Plex Mono'",marginLeft:4}}>{vol.toFixed(0)} kg</strong></span>
-              {objVol>0&&<span style={{color:vol>=objVol?T.green:T.dim,fontFamily:"'IBM Plex Mono'"}}>{vol>=objVol?"✓ atteint":`/ ${objVol.toFixed(0)} kg`}</span>}
+              {objVol>0&&<span style={{color:vol>=objVol?T.green:T.dim,fontFamily:"'IBM Plex Mono'",display:"inline-flex",alignItems:"center",gap:4}}>{vol>=objVol?<><Icon name="check" size={12}/> atteint</>:`/ ${objVol.toFixed(0)} kg`}</span>}
             </div>
             {objVol>0&&<div style={{height:5,background:T.ghost,borderRadius:3,overflow:"hidden"}}><div style={{width:`${Math.min(vol/objVol*100,100)}%`,height:"100%",background:vol>=objVol?T.green:tcol.grad,borderRadius:3,transition:"width .4s ease, background .25s"}}/></div>}
           </div>
         )}
         <input value={note} onChange={e=>setNote(e.target.value)} placeholder="Remarque…"
           style={{...T.inp,marginBottom:14,fontSize:14}}/>
-        <button onClick={doLog} disabled={!filled.length} style={{...btn(allDone?T.green:col,"#fff"),width:"100%",padding:"16px",fontSize:16,opacity:filled.length?1:.4,boxShadow:filled.length?`0 4px 16px ${(allDone?T.green:col)}55`:"none",fontWeight:800,letterSpacing:.3}}>
-          {alreadyLogged?"↻ RE-VALIDER":"✓ VALIDER LA SÉRIE"}
+        <button onClick={doLog} disabled={!filled.length} style={{...btn(allDone?T.green:col,"#fff"),width:"100%",padding:"16px",fontSize:16,opacity:filled.length?1:.4,boxShadow:filled.length?`0 4px 16px ${(allDone?T.green:col)}55`:"none",fontWeight:800,letterSpacing:.3,display:"inline-flex",alignItems:"center",justifyContent:"center",gap:8}}>
+          <Icon name={alreadyLogged?"refresh":"check"} size={16}/> {alreadyLogged?"Re-valider":"Valider la série"}
         </button>
       </div>
     </div>
@@ -951,7 +1035,7 @@ function Planner({weekPlan, setWeekPlan, exDB, allLogs, bw}) {
   if(step==="addex") return(
     <div style={{display:"flex",flexDirection:"column",gap:12}}>
       <div style={{display:"flex",alignItems:"center",gap:10}}>
-        <button onClick={()=>{setStep("list");setSearch("");}} style={ghostBtn({padding:"10px 14px",fontSize:13})}>← Retour</button>
+        <button onClick={()=>{setStep("list");setSearch("");}} style={ghostBtn({padding:"10px 14px",fontSize:13,display:"inline-flex",alignItems:"center",gap:6})}><Icon name="back" size={14}/> Retour</button>
         <span style={{fontWeight:800,fontSize:18,color:T.text,letterSpacing:-.3}}>Choisir un exercice</span>
       </div>
       <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Rechercher un exercice…" style={{...T.inp,fontSize:15}}/>
@@ -993,7 +1077,7 @@ function Planner({weekPlan, setWeekPlan, exDB, allLogs, bw}) {
     <div style={{display:"flex",flexDirection:"column",gap:14}}>
       <div>
         <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:6}}>
-          <button onClick={()=>setStep("addex")} style={ghostBtn({padding:"10px 14px",fontSize:13})}>← Retour</button>
+          <button onClick={()=>setStep("addex")} style={ghostBtn({padding:"10px 14px",fontSize:13,display:"inline-flex",alignItems:"center",gap:6})}><Icon name="back" size={14}/> Retour</button>
           <span style={{fontWeight:800,fontSize:18,color:T.text,letterSpacing:-.3,minWidth:0,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{pickedEx.name}</span>
         </div>
         <div style={{display:"flex",alignItems:"center",gap:6,flexWrap:"wrap",paddingLeft:6}}>
@@ -1039,7 +1123,7 @@ function Planner({weekPlan, setWeekPlan, exDB, allLogs, bw}) {
       <div style={{background:T.card,borderRadius:14,padding:"14px 16px",border:`1px solid ${T.border}`}}>
         <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:8,marginBottom:12,flexWrap:"wrap"}}>
           <div style={{fontFamily:"'Bebas Neue'",fontSize:14,letterSpacing:3,color:T.dim}}>OBJECTIF DE LA SEMAINE</div>
-          <span style={{fontSize:9,background:T.amber+"22",color:T.amber,borderRadius:5,padding:"3px 7px",fontFamily:"'IBM Plex Mono'",fontWeight:800,letterSpacing:.5}}>💡 PRÉ-REMPLI</span>
+          <span style={{fontSize:9,background:T.amber+"22",color:T.amber,borderRadius:5,padding:"3px 7px",fontFamily:"'IBM Plex Mono'",fontWeight:800,letterSpacing:.5}}>PRÉ-REMPLI</span>
         </div>
         {isCardio?(
           <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:14}}>
@@ -1061,7 +1145,7 @@ function Planner({weekPlan, setWeekPlan, exDB, allLogs, bw}) {
           </div>
         )}
         {!isCardio&&objVol>0&&<div style={{fontSize:13,color:T.dim,marginBottom:14,fontWeight:600}}>Volume cible : <strong style={{color:T.amber,fontFamily:"'IBM Plex Mono'"}}>{objVol.toFixed(0)} kg</strong></div>}
-        <button onClick={confirmAdd} style={{...btn(tcc.bg),width:"100%",padding:"15px",fontSize:15,boxShadow:`0 4px 16px ${tcc.bg}55`}}>+ AJOUTER AU PLAN</button>
+        <button onClick={confirmAdd} style={{...btn(tcc.bg),width:"100%",padding:"15px",fontSize:15,boxShadow:`0 4px 16px ${tcc.bg}55`,display:"inline-flex",alignItems:"center",justifyContent:"center",gap:8}}><Icon name="plus" size={15}/> Ajouter au plan</button>
       </div>
     </div>
   );}
@@ -1083,7 +1167,7 @@ function Planner({weekPlan, setWeekPlan, exDB, allLogs, bw}) {
               {availableDays.map(d=>(
                 <button key={d} onClick={()=>addDay(d)} style={{background:T.ghost,color:T.textDim,border:`1px dashed ${T.borderHi}`,borderRadius:10,padding:"9px 12px",fontFamily:"'Bebas Neue'",fontSize:13,cursor:"pointer",letterSpacing:1,WebkitTapHighlightColor:"transparent"}}>+ {d.toUpperCase()}</button>
               ))}
-              <button onClick={()=>setShowAddDay(false)} style={ghostBtn({padding:"9px 12px",fontSize:12})}>✕</button>
+              <IconBtn icon="close" onClick={()=>setShowAddDay(false)} title="Annuler"/>
             </div>
           ):(
             <button onClick={()=>setShowAddDay(true)} style={ghostBtn({padding:"9px 14px",fontSize:13,fontFamily:"'Bebas Neue'",letterSpacing:1.5,color:T.dim})}>+ JOUR</button>
@@ -1103,11 +1187,11 @@ function Planner({weekPlan, setWeekPlan, exDB, allLogs, bw}) {
           <div style={{fontFamily:"'Bebas Neue'",fontSize:24,color:T.text,letterSpacing:1,lineHeight:1}}>{sel.toUpperCase()}</div>
           <div style={{color:T.dim,fontSize:12,fontFamily:"'IBM Plex Mono'",marginTop:2,fontWeight:600}}>{currPlan.length} EXERCICE{currPlan.length>1?"S":""} · {currPlan.filter(p=>p.validatedFor===currentWeek).length} VALIDÉS</div>
         </div>
-        <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
-          <button onClick={()=>askRegen(sel)} title="Régénérer les objectifs" style={ghostBtn({padding:"11px 12px",fontSize:14,color:T.amber,borderColor:T.amber+"55"})}>↻</button>
-          <button onClick={()=>setShowCopy(v=>!v)} title="Dupliquer ce plan vers un autre jour" disabled={currPlan.length===0} style={ghostBtn({padding:"11px 12px",fontSize:14,color:currPlan.length===0?T.faint:T.dim,opacity:currPlan.length===0?.4:1})}>⎘</button>
-          <button onClick={()=>setStep("addex")} style={btn(T.red,"#fff",{padding:"11px 16px",fontSize:13,boxShadow:`0 4px 12px ${T.red}44`})}>+ EXERCICE</button>
-          <button onClick={()=>askRemoveDay(sel)} style={ghostBtn({padding:"11px 12px",fontSize:16,color:T.faint})}>🗑</button>
+        <div style={{display:"flex",gap:6,flexWrap:"wrap",alignItems:"center"}}>
+          <IconBtn icon="refresh" variant="warning" onClick={()=>askRegen(sel)} title="Régénérer les objectifs"/>
+          <IconBtn icon="copy" onClick={()=>setShowCopy(v=>!v)} disabled={currPlan.length===0} active={showCopy} title="Dupliquer ce plan vers un autre jour"/>
+          <IconBtn icon="trash" variant="danger" onClick={()=>askRemoveDay(sel)} title="Supprimer ce jour"/>
+          <button onClick={()=>setStep("addex")} style={btn(T.red,"#fff",{padding:"0 16px",height:36,fontSize:13,boxShadow:`0 4px 12px ${T.red}44`,display:"inline-flex",alignItems:"center",gap:6})}><Icon name="plus" size={15}/> EXERCICE</button>
         </div>
       </div>
       {showCopy&&currPlan.length>0&&(
@@ -1116,10 +1200,10 @@ function Planner({weekPlan, setWeekPlan, exDB, allLogs, bw}) {
           {DAYS_OF_WEEK.filter(d=>d!==sel).map(d=>{
             const has=(weekPlan[d]||[]).length>0;
             return(
-              <button key={d} onClick={()=>askCopyTo(d)} style={{background:has?T.ghost:T.card2,color:has?T.amber:T.textDim,border:`1px ${has?"solid":"dashed"} ${has?T.amber+"55":T.borderHi}`,borderRadius:9,padding:"7px 11px",fontFamily:"'Bebas Neue'",fontSize:12,letterSpacing:1,cursor:"pointer",WebkitTapHighlightColor:"transparent"}} title={has?`${d} contient déjà ${(weekPlan[d]||[]).length} exo`:`Créer le plan ${d}`}>{d.toUpperCase().slice(0,3)}{has?"*":""}</button>
+              <button key={d} onClick={()=>askCopyTo(d)} style={{background:has?T.ghost:T.card2,color:has?T.amber:T.textDim,border:`1px ${has?"solid":"dashed"} ${has?T.amber+"55":T.borderHi}`,borderRadius:9,padding:"7px 11px",fontFamily:"'Bebas Neue'",fontSize:12,letterSpacing:1,cursor:"pointer",WebkitTapHighlightColor:"transparent",display:"inline-flex",alignItems:"center",gap:5}} title={has?`${d} contient déjà ${(weekPlan[d]||[]).length} exo`:`Créer le plan ${d}`}>{d.toUpperCase().slice(0,3)}{has&&<span style={{width:5,height:5,borderRadius:3,background:T.amber}}/>}</button>
             );
           })}
-          <button onClick={()=>setShowCopy(false)} style={ghostBtn({padding:"7px 10px",fontSize:11,color:T.faint})}>✕</button>
+          <IconBtn icon="close" size={14} onClick={()=>setShowCopy(false)} title="Fermer"/>
         </div>
       )}
 
@@ -1147,7 +1231,7 @@ function Planner({weekPlan, setWeekPlan, exDB, allLogs, bw}) {
                   <div style={{position:"absolute",left:0,top:0,bottom:0,width:3,background:tcc.grad}}/>
                   <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10,paddingLeft:6,gap:8}}>
                     <div style={{fontWeight:800,fontSize:14,color:T.text,minWidth:0,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{p.exo}</div>
-                    {!validated&&<span style={{fontSize:9,background:T.amber+"22",color:T.amber,borderRadius:5,padding:"3px 7px",fontFamily:"'IBM Plex Mono'",fontWeight:800,letterSpacing:.5,whiteSpace:"nowrap"}}>💡 SUGGÉRÉ</span>}
+                    {!validated&&<span style={{fontSize:9,background:T.amber+"22",color:T.amber,borderRadius:5,padding:"3px 7px",fontFamily:"'IBM Plex Mono'",fontWeight:800,letterSpacing:.5,whiteSpace:"nowrap"}}>SUGGÉRÉ</span>}
                   </div>
                   <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:10}}>
                     {[["objDuration","MIN","1"],["objDistance","KM","0.1"]].map(([k,l,step])=>(
@@ -1156,7 +1240,7 @@ function Planner({weekPlan, setWeekPlan, exDB, allLogs, bw}) {
                   </div>
                   {s.lastPerf!=="—"&&<div style={{fontSize:11,color:T.dim,fontFamily:"'IBM Plex Mono'",fontWeight:600,marginBottom:10,paddingLeft:2}}><span style={{color:T.faint,letterSpacing:.5}}>DERNIÈRE</span> {s.lastPerf}</div>}
                   <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:6}}>
-                    <button onClick={()=>{set(sel,currPlan.map((px,j)=>j===i?{...px,objDuration:pf(editForm.objDuration),objDistance:pf(editForm.objDistance),validatedFor:currentWeek}:px));setEditIdx(null);}} style={btn(T.green,"#fff",{padding:"12px",fontSize:14})}>✓ VALIDER</button>
+                    <button onClick={()=>{set(sel,currPlan.map((px,j)=>j===i?{...px,objDuration:pf(editForm.objDuration),objDistance:pf(editForm.objDistance),validatedFor:currentWeek}:px));setEditIdx(null);}} style={btn(T.green,"#fff",{padding:"12px",fontSize:14,display:"inline-flex",alignItems:"center",justifyContent:"center",gap:6})}><Icon name="check" size={15}/> Valider</button>
                     <button onClick={()=>setEditIdx(null)} style={ghostBtn({padding:"12px",fontSize:14})}>Annuler</button>
                   </div>
                 </div>
@@ -1166,7 +1250,7 @@ function Planner({weekPlan, setWeekPlan, exDB, allLogs, bw}) {
                   <div style={{position:"absolute",left:0,top:0,bottom:0,width:3,background:tcc.grad}}/>
                   <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10,paddingLeft:6,gap:8}}>
                     <div style={{fontWeight:800,fontSize:14,color:T.text,minWidth:0,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{p.exo}</div>
-                    {!validated&&<span style={{fontSize:9,background:T.amber+"22",color:T.amber,borderRadius:5,padding:"3px 7px",fontFamily:"'IBM Plex Mono'",fontWeight:800,letterSpacing:.5,whiteSpace:"nowrap"}}>💡 SUGGÉRÉ</span>}
+                    {!validated&&<span style={{fontSize:9,background:T.amber+"22",color:T.amber,borderRadius:5,padding:"3px 7px",fontFamily:"'IBM Plex Mono'",fontWeight:800,letterSpacing:.5,whiteSpace:"nowrap"}}>SUGGÉRÉ</span>}
                   </div>
                   <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:8,marginBottom:10}}>
                     {[["objPoids","KG"],["objReps","REPS"],["objSeries","SÉRIES"]].map(([k,l])=>(
@@ -1175,7 +1259,7 @@ function Planner({weekPlan, setWeekPlan, exDB, allLogs, bw}) {
                   </div>
                   {s.lastPerf!=="—"&&<div style={{fontSize:11,color:T.dim,fontFamily:"'IBM Plex Mono'",fontWeight:600,marginBottom:10,paddingLeft:2}}><span style={{color:T.faint,letterSpacing:.5}}>DERNIÈRE</span> {s.lastPerf}{s.bestStr!=="—"?<><span style={{color:T.faint,marginLeft:10,letterSpacing:.5}}>BEST</span> <span style={{color:T.green,fontWeight:800}}>{s.bestStr}</span></>:""}</div>}
                   <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:6}}>
-                    <button onClick={()=>{set(sel,currPlan.map((px,j)=>j===i?{...px,objPoids:pf(editForm.objPoids),objReps:parseInt(editForm.objReps)||8,objSeries:parseInt(editForm.objSeries)||3,validatedFor:currentWeek}:px));setEditIdx(null);}} style={btn(T.green,"#fff",{padding:"12px",fontSize:14})}>✓ VALIDER</button>
+                    <button onClick={()=>{set(sel,currPlan.map((px,j)=>j===i?{...px,objPoids:pf(editForm.objPoids),objReps:parseInt(editForm.objReps)||8,objSeries:parseInt(editForm.objSeries)||3,validatedFor:currentWeek}:px));setEditIdx(null);}} style={btn(T.green,"#fff",{padding:"12px",fontSize:14,display:"inline-flex",alignItems:"center",justifyContent:"center",gap:6})}><Icon name="check" size={15}/> Valider</button>
                     <button onClick={()=>setEditIdx(null)} style={ghostBtn({padding:"12px",fontSize:14})}>Annuler</button>
                   </div>
                 </div>
@@ -1191,8 +1275,8 @@ function Planner({weekPlan, setWeekPlan, exDB, allLogs, bw}) {
                       <span style={{fontWeight:800,fontSize:14,color:T.text,letterSpacing:-.2}}>{p.exo}</span>
                       {isCardio&&<span style={{fontSize:9,background:tcc.soft,color:tcc.bg,borderRadius:5,padding:"2px 6px",fontFamily:"'IBM Plex Mono'",fontWeight:800,letterSpacing:.5}}>CARDIO</span>}
                       {validated
-                        ? <span style={{fontSize:9,background:T.green+"22",color:T.green,borderRadius:5,padding:"2px 6px",fontFamily:"'IBM Plex Mono'",fontWeight:800,letterSpacing:.5}}>✓</span>
-                        : <span style={{fontSize:9,background:T.amber+"22",color:T.amber,borderRadius:5,padding:"2px 6px",fontFamily:"'IBM Plex Mono'",fontWeight:800,letterSpacing:.5}}>💡 SUGGÉRÉ</span>
+                        ? <span style={{fontSize:9,background:T.green+"22",color:T.green,borderRadius:5,padding:"2px 6px",fontWeight:800,letterSpacing:.5,display:"inline-flex",alignItems:"center"}}><Icon name="check" size={11}/></span>
+                        : <span style={{fontSize:9,background:T.amber+"22",color:T.amber,borderRadius:5,padding:"2px 6px",fontFamily:"'IBM Plex Mono'",fontWeight:800,letterSpacing:.5}}>SUGGÉRÉ</span>
                       }
                     </div>
                     <div style={{display:"flex",alignItems:"center",gap:5,marginTop:4,flexWrap:"wrap"}}>
@@ -1200,13 +1284,11 @@ function Planner({weekPlan, setWeekPlan, exDB, allLogs, bw}) {
                       <ExFlags ex={ex} bw={bw}/>
                     </div>
                   </div>
-                  <div style={{display:"flex",gap:2,alignItems:"center"}}>
-                    <button onClick={()=>{setEditIdx(i);setEditForm(isCardio?{objDuration:String(dispDur||""),objDistance:String(dispDist||"")}:{objPoids:String(dispP||""),objReps:String(dispR||""),objSeries:String(dispS||"")});}} style={{background:T.ghost,border:"none",cursor:"pointer",color:T.dim,fontSize:14,padding:"7px 10px",borderRadius:8,WebkitTapHighlightColor:"transparent"}}>✏️</button>
-                    <button onClick={()=>askRemoveExo(i,p.exo)} style={{background:T.ghost,border:"none",cursor:"pointer",color:T.faint,fontSize:18,padding:"7px 10px",borderRadius:8,WebkitTapHighlightColor:"transparent"}}>×</button>
-                    <div onPointerDown={e=>startDrag(e,i)} title="Glisser pour réorganiser" style={{cursor:isDragging?"grabbing":"grab",color:T.dim,padding:"8px 6px",borderRadius:8,touchAction:"none",userSelect:"none",WebkitUserSelect:"none",display:"flex",flexDirection:"column",justifyContent:"center",alignItems:"center",gap:2,background:isDragging?T.red+"22":"transparent"}}>
-                      <span style={{display:"block",width:14,height:2,background:"currentColor",borderRadius:1,opacity:.85}}/>
-                      <span style={{display:"block",width:14,height:2,background:"currentColor",borderRadius:1,opacity:.85}}/>
-                      <span style={{display:"block",width:14,height:2,background:"currentColor",borderRadius:1,opacity:.85}}/>
+                  <div style={{display:"flex",gap:4,alignItems:"center"}}>
+                    <IconBtn icon="edit" size={14} onClick={()=>{setEditIdx(i);setEditForm(isCardio?{objDuration:String(dispDur||""),objDistance:String(dispDist||"")}:{objPoids:String(dispP||""),objReps:String(dispR||""),objSeries:String(dispS||"")});}} title="Modifier l'objectif" style={{width:32,height:32,borderRadius:8}}/>
+                    <IconBtn icon="trash" size={14} variant="danger" onClick={()=>askRemoveExo(i,p.exo)} title="Retirer l'exercice" style={{width:32,height:32,borderRadius:8}}/>
+                    <div onPointerDown={e=>startDrag(e,i)} title="Glisser pour réorganiser" style={{cursor:isDragging?"grabbing":"grab",color:isDragging?T.red:T.dim,padding:"6px 8px",borderRadius:8,touchAction:"none",userSelect:"none",WebkitUserSelect:"none",display:"flex",alignItems:"center",justifyContent:"center",background:isDragging?T.red+"15":"transparent",border:`1px solid ${isDragging?T.red+"55":"transparent"}`,height:32,transition:"background .15s, border-color .15s, color .15s"}}>
+                      <Icon name="grip" size={16}/>
                     </div>
                   </div>
                 </div>
@@ -1392,7 +1474,7 @@ function Stats({logs, exDB}) {
           ))}
         </div>
         {(fExo!=="Tous"||fMuscle!=="Tous"||fType!=="Tous")&&
-          <button onClick={()=>{setFExo("Tous");setFMuscle("Tous");setFType("Tous");}} style={{...ghostBtn({padding:"8px 12px",fontSize:12,marginTop:8})}}>✕ Réinitialiser</button>}
+          <button onClick={()=>{setFExo("Tous");setFMuscle("Tous");setFType("Tous");}} style={{...ghostBtn({padding:"8px 12px",fontSize:12,marginTop:8,display:"inline-flex",alignItems:"center",gap:6})}}><Icon name="close" size={12}/> Réinitialiser</button>}
       </div>
 
       {/* Hero KPIs */}
@@ -1681,7 +1763,7 @@ function LogEditor({log, exDB, onSave, onDelete, onClose, bw}) {
             <div style={{fontSize:12,color:T.dim,fontFamily:"'IBM Plex Mono'",marginTop:4,fontWeight:600}}>{log.date}</div>
             {!isCardio&&liftHint(ex,bw)&&<div style={{fontSize:10,color:T.faint,fontFamily:"'IBM Plex Mono'",letterSpacing:.3,marginTop:6,fontWeight:600,fontStyle:"italic"}}>ⓘ {liftHint(ex,bw)}</div>}
           </div>
-          <button onClick={onClose} style={{background:T.ghost,border:"none",color:T.dim,fontSize:18,cursor:"pointer",borderRadius:10,padding:"8px 11px",WebkitTapHighlightColor:"transparent"}}>✕</button>
+          <IconBtn icon="close" onClick={onClose} title="Fermer"/>
         </div>
         {isCardio?(
           <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:14}}>
@@ -1697,17 +1779,17 @@ function LogEditor({log, exDB, onSave, onDelete, onClose, bw}) {
               <div style={{fontSize:13,color:T.faint,textAlign:"center",fontFamily:"'Bebas Neue'",letterSpacing:1}}>{i+1}</div>
               <input type="number" step="0.5" value={s.poids} onChange={e=>upd(i,"poids",e.target.value)} style={{...T.inp,textAlign:"center",fontSize:20,fontWeight:900,padding:"13px 4px"}}/>
               <input type="number" value={s.reps} onChange={e=>upd(i,"reps",e.target.value)} style={{...T.inp,textAlign:"center",fontSize:20,fontWeight:900,padding:"13px 4px"}}/>
-              <button onClick={()=>setSeries(p=>p.filter((_,j)=>j!==i))} style={{background:"transparent",border:"none",cursor:"pointer",color:T.faint,fontSize:22,WebkitTapHighlightColor:"transparent"}}>×</button>
+              <button onClick={()=>setSeries(p=>p.filter((_,j)=>j!==i))} style={{background:"transparent",border:"none",cursor:"pointer",color:T.faint,WebkitTapHighlightColor:"transparent",display:"flex",alignItems:"center",justifyContent:"center"}}><Icon name="close" size={16}/></button>
             </div>
           ))}
-          <button onClick={()=>setSeries(p=>[...p,{poids:p[p.length-1]?.poids||"",reps:""}])} style={{background:"transparent",border:`1.5px dashed ${T.border}`,borderRadius:12,color:T.dim,fontSize:13,cursor:"pointer",padding:"11px",width:"100%",marginBottom:14,fontWeight:600,fontFamily:"'Inter',sans-serif",WebkitTapHighlightColor:"transparent"}}>+ Ajouter une série</button>
+          <button onClick={()=>setSeries(p=>[...p,{poids:p[p.length-1]?.poids||"",reps:""}])} style={{background:"transparent",border:`1.5px dashed ${T.border}`,borderRadius:12,color:T.dim,fontSize:13,cursor:"pointer",padding:"11px",width:"100%",marginBottom:14,fontWeight:600,fontFamily:"'Inter',sans-serif",WebkitTapHighlightColor:"transparent",display:"inline-flex",alignItems:"center",justifyContent:"center",gap:6}}><Icon name="plus" size={14}/> Ajouter une série</button>
         </>)}
         <input value={note} onChange={e=>setNote(e.target.value)} placeholder="Remarque…" style={{...T.inp,marginBottom:14}}/>
         <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:8}}>
-          <button onClick={save} style={btn(T.green,"#fff",{padding:"14px",fontSize:14,boxShadow:`0 4px 12px ${T.green}55`})}>✓ Enregistrer</button>
+          <button onClick={save} style={btn(T.green,"#fff",{padding:"14px",fontSize:14,boxShadow:`0 4px 12px ${T.green}55`,display:"inline-flex",alignItems:"center",justifyContent:"center",gap:6})}><Icon name="check" size={15}/> Enregistrer</button>
           <button onClick={onClose} style={ghostBtn({padding:"14px",fontSize:14})}>Annuler</button>
         </div>
-        {onDelete&&<button onClick={()=>setConfirmDel(true)} style={{...ghostBtn({padding:"12px",fontSize:13,width:"100%",color:T.red,borderColor:T.red+"55"})}}>🗑 Supprimer ce log</button>}
+        {onDelete&&<button onClick={()=>setConfirmDel(true)} style={{...ghostBtn({padding:"12px",fontSize:13,width:"100%",color:T.red,borderColor:T.red+"55",display:"inline-flex",alignItems:"center",justifyContent:"center",gap:6})}}><Icon name="trash" size={14}/> Supprimer ce log</button>}
       </div>
     </div>
     </>
@@ -1756,7 +1838,7 @@ function LogAddModal({defaultDate, exDB, onSave, onClose, bw}) {
           <>
           <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14}}>
             <div style={{fontWeight:900,fontSize:18,color:T.text,letterSpacing:-.3}}>Ajouter un log</div>
-            <button onClick={onClose} style={{background:T.ghost,border:"none",color:T.dim,fontSize:18,cursor:"pointer",borderRadius:10,padding:"8px 11px"}}>✕</button>
+            <IconBtn icon="close" onClick={onClose} title="Fermer"/>
           </div>
           <div style={{marginBottom:12}}>
             <label style={T.lbl}>DATE (JJ/MM/AAAA)</label>
@@ -1785,7 +1867,7 @@ function LogAddModal({defaultDate, exDB, onSave, onClose, bw}) {
           <>
           <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:16,gap:10}}>
             <div style={{flex:1,minWidth:0}}>
-              <button onClick={()=>setStep("pick")} style={{...ghostBtn({padding:"6px 10px",fontSize:12,marginBottom:8})}}>← Changer</button>
+              <button onClick={()=>setStep("pick")} style={{...ghostBtn({padding:"6px 10px",fontSize:12,marginBottom:8,display:"inline-flex",alignItems:"center",gap:5})}}><Icon name="back" size={13}/> Changer</button>
               <div style={{fontWeight:900,fontSize:17,color:T.text,letterSpacing:-.2}}>{pickedEx.name}</div>
               <div style={{display:"flex",alignItems:"center",gap:6,marginTop:5,flexWrap:"wrap"}}>
                 <span style={{fontSize:12,color:T.dim,fontFamily:"'IBM Plex Mono'",fontWeight:600}}>{date}</span>
@@ -1793,7 +1875,7 @@ function LogAddModal({defaultDate, exDB, onSave, onClose, bw}) {
               </div>
               {!pickedEx.isCardio&&liftHint(pickedEx,bw)&&<div style={{fontSize:10,color:T.faint,fontFamily:"'IBM Plex Mono'",letterSpacing:.3,marginTop:6,fontWeight:600,fontStyle:"italic"}}>ⓘ {liftHint(pickedEx,bw)}</div>}
             </div>
-            <button onClick={onClose} style={{background:T.ghost,border:"none",color:T.dim,fontSize:18,cursor:"pointer",borderRadius:10,padding:"8px 11px"}}>✕</button>
+            <IconBtn icon="close" onClick={onClose} title="Fermer"/>
           </div>
           {pickedEx.isCardio?(
             <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:14}}>
@@ -1809,14 +1891,14 @@ function LogAddModal({defaultDate, exDB, onSave, onClose, bw}) {
                 <div style={{fontSize:13,color:T.faint,textAlign:"center",fontFamily:"'Bebas Neue'",letterSpacing:1}}>{i+1}</div>
                 <input type="number" step="0.5" value={s.poids} onChange={e=>upd(i,"poids",e.target.value)} style={{...T.inp,textAlign:"center",fontSize:20,fontWeight:900,padding:"13px 4px"}}/>
                 <input type="number" value={s.reps} onChange={e=>upd(i,"reps",e.target.value)} style={{...T.inp,textAlign:"center",fontSize:20,fontWeight:900,padding:"13px 4px"}}/>
-                <button onClick={()=>setSeries(p=>p.filter((_,j)=>j!==i))} style={{background:"transparent",border:"none",cursor:"pointer",color:T.faint,fontSize:22}}>×</button>
+                <button onClick={()=>setSeries(p=>p.filter((_,j)=>j!==i))} style={{background:"transparent",border:"none",cursor:"pointer",color:T.faint,display:"flex",alignItems:"center",justifyContent:"center"}}><Icon name="close" size={16}/></button>
               </div>
             ))}
-            <button onClick={()=>setSeries(p=>[...p,{poids:p[p.length-1]?.poids||"",reps:""}])} style={{background:"transparent",border:`1.5px dashed ${T.border}`,borderRadius:12,color:T.dim,fontSize:13,cursor:"pointer",padding:"11px",width:"100%",marginBottom:14,fontWeight:600,fontFamily:"'Inter',sans-serif"}}>+ Ajouter une série</button>
+            <button onClick={()=>setSeries(p=>[...p,{poids:p[p.length-1]?.poids||"",reps:""}])} style={{background:"transparent",border:`1.5px dashed ${T.border}`,borderRadius:12,color:T.dim,fontSize:13,cursor:"pointer",padding:"11px",width:"100%",marginBottom:14,fontWeight:600,fontFamily:"'Inter',sans-serif",display:"inline-flex",alignItems:"center",justifyContent:"center",gap:6}}><Icon name="plus" size={14}/> Ajouter une série</button>
           </>)}
           <input value={note} onChange={e=>setNote(e.target.value)} placeholder="Remarque…" style={{...T.inp,marginBottom:14}}/>
           <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
-            <button onClick={submit} style={btn(T.green,"#fff",{padding:"14px",fontSize:14,boxShadow:`0 4px 12px ${T.green}55`})}>✓ Ajouter</button>
+            <button onClick={submit} style={btn(T.green,"#fff",{padding:"14px",fontSize:14,boxShadow:`0 4px 12px ${T.green}55`,display:"inline-flex",alignItems:"center",justifyContent:"center",gap:6})}><Icon name="plus" size={14}/> Ajouter</button>
             <button onClick={onClose} style={ghostBtn({padding:"14px",fontSize:14})}>Annuler</button>
           </div>
           </>
@@ -1838,7 +1920,7 @@ function ExModal({initial, onSave, onDelete, onClose}) {
         <div style={{height:4,width:40,background:T.borderHi,borderRadius:2,margin:"0 auto 16px"}}/>
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
           <div style={{fontWeight:900,fontSize:18,color:T.text,letterSpacing:-.3}}>{initial?"Modifier l'exercice":"Nouvel exercice"}</div>
-          <button onClick={onClose} style={{background:T.ghost,border:"none",color:T.dim,fontSize:18,cursor:"pointer",borderRadius:10,padding:"8px 11px"}}>✕</button>
+          <IconBtn icon="close" onClick={onClose} title="Fermer"/>
         </div>
         <div style={{marginBottom:12}}><label style={T.lbl}>NOM</label><input value={f.name} onChange={e=>setF(p=>({...p,name:e.target.value}))} style={T.inp} autoFocus/></div>
         <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:12}}>
@@ -1854,10 +1936,10 @@ function ExModal({initial, onSave, onDelete, onClose}) {
           Au poids du corps (PDC)
         </label>
         <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:initial&&onDelete?8:0}}>
-          <button onClick={()=>{if(f.name.trim()){onSave(f);onClose();}}} style={btn(T.green,"#fff",{padding:"14px",fontSize:14,boxShadow:`0 4px 12px ${T.green}55`})}>✓ Enregistrer</button>
+          <button onClick={()=>{if(f.name.trim()){onSave(f);onClose();}}} style={btn(T.green,"#fff",{padding:"14px",fontSize:14,boxShadow:`0 4px 12px ${T.green}55`,display:"inline-flex",alignItems:"center",justifyContent:"center",gap:6})}><Icon name="check" size={15}/> Enregistrer</button>
           <button onClick={onClose} style={ghostBtn({padding:"14px",fontSize:14})}>Annuler</button>
         </div>
-        {initial&&onDelete&&<button onClick={()=>setConfirmDel(true)} style={{...ghostBtn({padding:"12px",fontSize:13,width:"100%",color:T.red,borderColor:T.red+"55"})}}>🗑 Supprimer cet exercice</button>}
+        {initial&&onDelete&&<button onClick={()=>setConfirmDel(true)} style={{...ghostBtn({padding:"12px",fontSize:13,width:"100%",color:T.red,borderColor:T.red+"55",display:"inline-flex",alignItems:"center",justifyContent:"center",gap:6})}}><Icon name="trash" size={14}/> Supprimer cet exercice</button>}
       </div>
     </div>
     </>
@@ -2151,24 +2233,26 @@ select{appearance:none;-webkit-appearance:none;background-image:url("data:image/
           </div>
         </div>
         <div style={{display:"flex",gap:6,alignItems:"center"}}>
-          <button onClick={()=>{if(Date.now()-lastPullAt.current<2000)return;reloadFromStorage();}} title="Récupérer depuis le cloud" style={{background:T.ghost,color:T.dim,border:`1px solid ${T.border}`,borderRadius:10,padding:"10px 11px",fontSize:14,cursor:"pointer",WebkitTapHighlightColor:"transparent"}}>↻</button>
-          <button onClick={doPush} title={dirty?"Changements à sauvegarder":"À jour"} disabled={pushStatus==="pushing"} style={{background:dirty?T.red+"22":T.ghost,color:pushStatus==="error"?T.red:pushStatus==="pushed"?T.green:dirty?T.red:T.dim,border:`1px solid ${dirty?T.red+"55":T.border}`,borderRadius:10,padding:"10px 11px",fontSize:14,cursor:pushStatus==="pushing"?"wait":"pointer",WebkitTapHighlightColor:"transparent",position:"relative",fontWeight:700,opacity:pushStatus==="pushing"?.7:1,minWidth:42}}>
-            {pushStatus==="pushing"
-              ? <span className="k-spin" style={{display:"inline-block"}}>⟳</span>
-              : pushStatus==="pushed" ? <span className="k-pop" style={{display:"inline-block"}}>✓</span>
-              : pushStatus==="error" ? "⚠"
-              : "💾"}
-            {dirty&&pushStatus===null&&<span className="k-pulse-red" style={{position:"absolute",top:4,right:4,width:7,height:7,borderRadius:4,background:T.red}}/>}
-          </button>
+          <IconBtn icon="refresh" onClick={()=>{if(Date.now()-lastPullAt.current<2000)return;reloadFromStorage();}} title="Récupérer depuis le cloud"/>
+          <div style={{position:"relative"}}>
+            <IconBtn
+              icon={pushStatus==="pushed"?"check":pushStatus==="error"?"alert":"save"}
+              onClick={doPush}
+              spinning={pushStatus==="pushing"}
+              title={dirty?"Changements à sauvegarder":"À jour"}
+              variant={pushStatus==="error"?"danger":pushStatus==="pushed"?"success":dirty?"accent":"ghost"}
+            />
+            {dirty&&pushStatus===null&&<span className="k-pulse-red" style={{position:"absolute",top:4,right:4,width:6,height:6,borderRadius:3,background:T.red,pointerEvents:"none"}}/>}
+          </div>
           {showBwEdit?(
             <div style={{display:"flex",gap:5,alignItems:"center"}}>
               <input type="number" value={bwInput} onChange={e=>setBwInput(e.target.value)} style={{...T.inp,width:70,padding:"8px 10px",fontSize:13}} autoFocus/>
-              <button onClick={()=>{setBw(pf(bwInput));setShowBwEdit(false);}} style={btn(T.green,"#fff",{padding:"8px 11px",fontSize:13})}>✓</button>
+              <IconBtn icon="check" variant="success" onClick={()=>{setBw(pf(bwInput));setShowBwEdit(false);}} title="Valider"/>
             </div>
           ):(
-            <button onClick={()=>setShowBwEdit(true)} style={{background:T.ghost,color:T.textDim,border:"none",borderRadius:10,padding:"10px 13px",fontSize:11,cursor:"pointer",fontFamily:"'IBM Plex Mono'",fontWeight:800,letterSpacing:.5,WebkitTapHighlightColor:"transparent"}}>PDC {bw}kg</button>
+            <button onClick={()=>setShowBwEdit(true)} style={{background:T.ghost,color:T.textDim,border:`1px solid ${T.border}`,borderRadius:10,padding:"0 12px",height:36,fontSize:11,cursor:"pointer",fontFamily:"'IBM Plex Mono'",fontWeight:800,letterSpacing:.5,WebkitTapHighlightColor:"transparent"}}>PDC {bw}kg</button>
           )}
-          <button onClick={()=>setTimer(true)} style={{background:T.ghost,color:T.textDim,border:"none",borderRadius:10,padding:"10px 13px",fontSize:16,cursor:"pointer",WebkitTapHighlightColor:"transparent"}}>⏱</button>
+          <IconBtn icon="timer" onClick={()=>setTimer(true)} title="Minuteur de repos"/>
         </div>
       </div>
 
@@ -2199,7 +2283,7 @@ select{appearance:none;-webkit-appearance:none;background-image:url("data:image/
                     {todayPlan.length>0?<><span className="k-pop" style={{display:"inline-block",color:todayLogs.length===todayPlan.length?T.green:T.text,fontWeight:900,fontSize:20,fontFamily:"'IBM Plex Mono'"}}>{todayLogs.length}</span><span style={{color:T.faint}}>/{todayPlan.length}</span> validés</>:<span style={{color:T.amber}}>Repos · aucun plan</span>}
                   </div>
                 </div>
-                {todayPlan.length===0&&<button onClick={()=>setTab("plan")} style={btn(T.red,"#fff",{padding:"11px 16px",fontSize:13,boxShadow:`0 4px 12px ${T.red}55`})}>PLANIFIER →</button>}
+                {todayPlan.length===0&&<button onClick={()=>setTab("plan")} style={btn(T.red,"#fff",{padding:"11px 16px",fontSize:13,boxShadow:`0 4px 12px ${T.red}55`,display:"inline-flex",alignItems:"center",gap:6})}>Planifier <Icon name="chevron" size={13}/></button>}
               </div>
               {todayPlan.length>0&&(
                 <div style={{height:6,background:T.ghost,borderRadius:3,overflow:"hidden",position:"relative"}}>
@@ -2211,7 +2295,7 @@ select{appearance:none;-webkit-appearance:none;background-image:url("data:image/
               <div style={{textAlign:"center",padding:"60px 20px",color:T.faint}}>
                 <div style={{fontFamily:"'Bebas Neue'",fontSize:60,color:T.faint,letterSpacing:2,marginBottom:6}}>—</div>
                 <div style={{fontSize:14,marginBottom:18,color:T.dim}}>Aucun plan pour {todayWeekday().toLowerCase()}</div>
-                <button onClick={()=>setTab("plan")} style={btn(T.red,"#fff",{padding:"14px 24px",fontSize:14,boxShadow:`0 4px 16px ${T.red}55`})}>CRÉER LE PLAN →</button>
+                <button onClick={()=>setTab("plan")} style={btn(T.red,"#fff",{padding:"14px 24px",fontSize:14,boxShadow:`0 4px 16px ${T.red}55`,display:"inline-flex",alignItems:"center",gap:8})}>Créer le plan <Icon name="chevron" size={14}/></button>
               </div>
             ):(
               todayPlan.map((p,i)=><ExCard key={i} plan={p} exDB={exDB} onLog={addLog} todayLogs={todayLogs} allLogs={logs} bw={bw}/>)
@@ -2244,7 +2328,7 @@ select{appearance:none;-webkit-appearance:none;background-image:url("data:image/
                   <div style={{fontSize:10,color:T.faint,fontFamily:"'IBM Plex Mono'",fontWeight:700,marginTop:3,letterSpacing:1}}>{filteredLogs.length} ENTRÉE{filteredLogs.length>1?"S":""}</div>
                 </div>
               </div>
-              <button onClick={()=>setLogAdd({defaultDate:todayFR()})} style={btn(T.green,"#fff",{padding:"11px 16px",fontSize:13,boxShadow:`0 4px 12px ${T.green}55`})}>+ AJOUTER</button>
+              <button onClick={()=>setLogAdd({defaultDate:todayFR()})} style={btn(T.green,"#fff",{padding:"0 16px",height:36,fontSize:13,boxShadow:`0 4px 12px ${T.green}55`,display:"inline-flex",alignItems:"center",gap:6})}><Icon name="plus" size={14}/> AJOUTER</button>
             </div>
             <div style={{display:"flex",gap:8,marginBottom:8}}>
               <input value={logSearch} onChange={e=>setLogSearch(e.target.value)} placeholder="Exo, muscle, remarque…" style={{...T.inp,flex:1,fontSize:14}}/>
@@ -2257,7 +2341,7 @@ select{appearance:none;-webkit-appearance:none;background-image:url("data:image/
                 <button key={t} onClick={()=>setLogType(t)} style={{background:logType===t?(t==="Tous"?T.text:tc(t).bg):T.ghost,color:logType===t?(t==="Tous"?T.bg:"#fff"):T.textDim,border:"none",borderRadius:8,padding:"6px 11px",fontSize:10,cursor:"pointer",fontFamily:"'IBM Plex Mono'",fontWeight:800,letterSpacing:.5,WebkitTapHighlightColor:"transparent"}}>{t.toUpperCase()}</button>
               ))}
               {(logSearch||logDate!=="Tous"||logType!=="Tous")&&(
-                <button onClick={()=>{setLogSearch("");setLogDate("Tous");setLogType("Tous");}} style={ghostBtn({padding:"6px 10px",fontSize:10,fontFamily:"'IBM Plex Mono'",letterSpacing:.5,fontWeight:700,color:T.faint})}>✕ RESET</button>
+                <button onClick={()=>{setLogSearch("");setLogDate("Tous");setLogType("Tous");}} style={ghostBtn({padding:"6px 10px",fontSize:10,fontFamily:"'IBM Plex Mono'",letterSpacing:.5,fontWeight:700,color:T.faint,display:"inline-flex",alignItems:"center",gap:5})}><Icon name="close" size={11}/> RESET</button>
               )}
             </div>
             {filteredLogs.length===0&&(
@@ -2268,8 +2352,8 @@ select{appearance:none;-webkit-appearance:none;background-image:url("data:image/
             )}
             {filteredLogs.length>0&&(
               <div style={{display:"flex",gap:6,marginBottom:12}}>
-                <button onClick={()=>{const all=new Set([...new Set(filteredLogs.map(l=>l.date))]);setExpandedDates(all);}} style={ghostBtn({padding:"7px 11px",fontSize:11,fontFamily:"'IBM Plex Mono'",letterSpacing:.5,fontWeight:700,color:T.dim})}>↓ TOUT DÉPLIER</button>
-                <button onClick={()=>setExpandedDates(new Set())} style={ghostBtn({padding:"7px 11px",fontSize:11,fontFamily:"'IBM Plex Mono'",letterSpacing:.5,fontWeight:700,color:T.dim})}>↑ TOUT REPLIER</button>
+                <button onClick={()=>{const all=new Set([...new Set(filteredLogs.map(l=>l.date))]);setExpandedDates(all);}} style={ghostBtn({padding:"7px 11px",fontSize:11,fontFamily:"'IBM Plex Mono'",letterSpacing:.5,fontWeight:700,color:T.dim})}>TOUT DÉPLIER</button>
+                <button onClick={()=>setExpandedDates(new Set())} style={ghostBtn({padding:"7px 11px",fontSize:11,fontFamily:"'IBM Plex Mono'",letterSpacing:.5,fontWeight:700,color:T.dim})}>TOUT REPLIER</button>
               </div>
             )}
             <div style={{display:"flex",flexDirection:"column",gap:6}}>
@@ -2293,13 +2377,13 @@ select{appearance:none;-webkit-appearance:none;background-image:url("data:image/
                     <div style={{display:"flex",alignItems:"center",gap:8,background:isOpen?T.cardHi:T.card,border:`1px solid ${T.border}`,borderRadius:isOpen?"12px 12px 0 0":12,padding:"10px 12px",borderBottom:isOpen?"none":`1px solid ${T.border}`}}>
                       <div role="button" tabIndex={0} onClick={toggle} onKeyDown={e=>{if(e.key==="Enter"||e.key===" "){e.preventDefault();toggle();}}}
                         style={{flex:1,minWidth:0,cursor:"pointer",display:"flex",alignItems:"center",gap:10,WebkitTapHighlightColor:"transparent"}}>
-                        <span style={{fontSize:14,color:T.dim,fontFamily:"'IBM Plex Mono'",fontWeight:800,width:14,display:"inline-block",transition:"transform .15s",transform:isOpen?"rotate(90deg)":"rotate(0)"}}>›</span>
+                        <span style={{color:T.dim,display:"inline-flex",alignItems:"center",justifyContent:"center",width:14,transition:"transform .15s",transform:isOpen?"rotate(90deg)":"rotate(0)"}}><Icon name="chevron" size={14}/></span>
                         <div style={{flex:1,minWidth:0}}>
                           <div style={{fontFamily:"'Bebas Neue'",fontSize:17,letterSpacing:1.5,color:T.text,lineHeight:1}}>{dowOf(date).toUpperCase()} <span style={{color:T.dim,fontSize:13,letterSpacing:.5}}>· {date}</span></div>
                           <div style={{fontFamily:"'IBM Plex Mono'",fontSize:10,color:T.amber,marginTop:3,fontWeight:800,letterSpacing:.5}}>{summary||"—"} · {entries.length} EXO{entries.length>1?"S":""}</div>
                         </div>
                       </div>
-                      <button onClick={(e)=>{e.stopPropagation();setLogAdd({defaultDate:date});}} style={ghostBtn({padding:"7px 10px",fontSize:11,fontFamily:"'Bebas Neue'",letterSpacing:1})}>+ EXO</button>
+                      <button onClick={(e)=>{e.stopPropagation();setLogAdd({defaultDate:date});}} style={ghostBtn({padding:"7px 10px",fontSize:11,fontFamily:"'Bebas Neue'",letterSpacing:1,display:"inline-flex",alignItems:"center",gap:5})}><Icon name="plus" size={12}/> EXO</button>
                     </div>
                     {/* Entries (only when expanded) */}
                     {isOpen&&(
@@ -2316,7 +2400,7 @@ select{appearance:none;-webkit-appearance:none;background-image:url("data:image/
                                 <div style={{flex:1,minWidth:0}}>
                                   <div style={{display:"flex",alignItems:"center",gap:6,flexWrap:"wrap"}}>
                                     <span style={{fontWeight:800,fontSize:14,color:T.text,letterSpacing:-.2}}>{log.exo}</span>
-                                    {isPR&&<span title="Record personnel" style={{fontSize:9,background:`linear-gradient(135deg, ${T.amber}, #fbbf24)`,color:"#1a1a00",borderRadius:5,padding:"2px 7px",fontFamily:"'IBM Plex Mono'",fontWeight:900,letterSpacing:.5,boxShadow:`0 2px 8px ${T.amber}55`,whiteSpace:"nowrap"}}>🏆 PR</span>}
+                                    {isPR&&<span title="Record personnel" style={{fontSize:9,background:T.amber+"22",color:T.amber,borderRadius:5,padding:"2px 7px",fontFamily:"'IBM Plex Mono'",fontWeight:800,letterSpacing:.5,whiteSpace:"nowrap",display:"inline-flex",alignItems:"center",gap:4,border:`1px solid ${T.amber}55`}}><Icon name="trophy" size={10}/> PR</span>}
                                   </div>
                                   {ex&&!isCardio&&(ex.mult>1||ex.barAdd>0||ex.useBodyweight)&&(
                                     <div style={{display:"flex",gap:4,marginTop:4,flexWrap:"wrap"}}><ExFlags ex={ex} bw={pf(log.bw)||0}/></div>
@@ -2327,7 +2411,7 @@ select{appearance:none;-webkit-appearance:none;background-image:url("data:image/
                                   {isCardio
                                     ? <div style={{fontFamily:"'IBM Plex Mono'",fontWeight:800,color:tcc.bg,fontSize:12,whiteSpace:"nowrap"}}>{cardioStr(log)}</div>
                                     : <div style={{fontFamily:"'IBM Plex Mono'",fontWeight:800,color:tcc.bg,fontSize:12,whiteSpace:"nowrap"}}>{(log.volume||0).toFixed(0)}<span style={{color:T.dim,fontWeight:600}}>kg</span></div>}
-                                  <button onClick={()=>setLogEdit(log)} style={{background:T.ghost,border:"none",cursor:"pointer",color:T.dim,fontSize:13,padding:"6px 9px",borderRadius:8,WebkitTapHighlightColor:"transparent"}}>✏️</button>
+                                  <IconBtn icon="edit" size={13} onClick={()=>setLogEdit(log)} title="Modifier le log" style={{width:30,height:30,borderRadius:8}}/>
                                 </div>
                               </div>
                               {isCardio?(
@@ -2375,7 +2459,7 @@ select{appearance:none;-webkit-appearance:none;background-image:url("data:image/
                   <div style={{fontSize:10,color:T.faint,fontFamily:"'IBM Plex Mono'",fontWeight:700,marginTop:3,letterSpacing:1}}>{filteredExDB.length} EN BASE</div>
                 </div>
               </div>
-              <button onClick={()=>setExModal({mode:"add"})} style={btn(T.red,"#fff",{padding:"11px 16px",fontSize:13,boxShadow:`0 4px 12px ${T.red}55`})}>+ NOUVEAU</button>
+              <button onClick={()=>setExModal({mode:"add"})} style={btn(T.red,"#fff",{padding:"0 16px",height:36,fontSize:13,boxShadow:`0 4px 12px ${T.red}55`,display:"inline-flex",alignItems:"center",gap:6})}><Icon name="plus" size={14}/> NOUVEAU</button>
             </div>
             {/* Type legend */}
             <div style={{display:"flex",gap:10,marginBottom:12,flexWrap:"wrap"}}>
@@ -2401,7 +2485,7 @@ select{appearance:none;-webkit-appearance:none;background-image:url("data:image/
                         <span style={{color:T.faint}}>×{ex.mult}{ex.barAdd>0?` +${ex.barAdd}KG`:""}{ex.useBodyweight?" · PDC":""}</span>
                       </div>
                     </div>
-                    <button onClick={()=>setExModal({mode:"edit",idx:exDB.indexOf(ex),data:{...ex}})} style={{background:T.ghost,border:"none",cursor:"pointer",color:T.dim,fontSize:13,padding:"7px 10px",borderRadius:8,WebkitTapHighlightColor:"transparent"}}>✏️</button>
+                    <IconBtn icon="edit" size={14} onClick={()=>setExModal({mode:"edit",idx:exDB.indexOf(ex),data:{...ex}})} title="Modifier" style={{width:32,height:32,borderRadius:8}}/>
                   </div>
                 );
               })}
