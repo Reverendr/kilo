@@ -868,7 +868,8 @@ function ExCard({plan, exDB, onLog, todayLogs, allLogs, bw}) {
 /* ─── PLANNER ────────────────────────────────────────────────────────────── */
 function Planner({weekPlan, setWeekPlan, exDB, allLogs, bw}) {
   const days = Object.keys(weekPlan).sort((a,b)=>DAYS_OF_WEEK.indexOf(a)-DAYS_OF_WEEK.indexOf(b));
-  const [sel,setSel]=useState(days[0]||"");
+  const today=todayWeekday();
+  const [sel,setSel]=useState(days.includes(today)?today:(days[0]||""));
   const [step,setStep]=useState("list"); // list | addex | confirm
   const [search,setSearch]=useState("");
   const [pickedEx,setPickedEx]=useState(null);
@@ -970,7 +971,7 @@ function Planner({weekPlan, setWeekPlan, exDB, allLogs, bw}) {
 
   const buildShareText=()=>{
     const lines=[];
-    lines.push(`KILO — ${sel.toUpperCase()} (${currPlan.length} exo${currPlan.length>1?"s":""})`);
+    lines.push(`${sel.toUpperCase()} (${currPlan.length} exo${currPlan.length>1?"s":""})`);
     lines.push("");
     currPlan.forEach((p,i)=>{
       const ex=exDB.find(e=>e.name===p.exo);
@@ -996,8 +997,6 @@ function Planner({weekPlan, setWeekPlan, exDB, allLogs, bw}) {
       if(flags.length)line+=` (${flags.join(", ")})`;
       lines.push(line);
     });
-    lines.push("");
-    lines.push("— Partagé via Kilo");
     return lines.join("\n");
   };
 
