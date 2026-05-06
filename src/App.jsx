@@ -522,6 +522,8 @@ function Icon({name, size=16, strokeWidth=1.9}) {
       return(<svg {...c}><circle cx="12" cy="12" r="3" fill="currentColor" stroke="none"/></svg>);
     case "grip":
       return(<svg {...c}><circle cx="9" cy="6" r="1.4" fill="currentColor" stroke="none"/><circle cx="9" cy="12" r="1.4" fill="currentColor" stroke="none"/><circle cx="9" cy="18" r="1.4" fill="currentColor" stroke="none"/><circle cx="15" cy="6" r="1.4" fill="currentColor" stroke="none"/><circle cx="15" cy="12" r="1.4" fill="currentColor" stroke="none"/><circle cx="15" cy="18" r="1.4" fill="currentColor" stroke="none"/></svg>);
+    case "share":
+      return(<svg {...c}><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.6" y1="13.5" x2="15.4" y2="17.5"/><line x1="15.4" y1="6.5" x2="8.6" y2="10.5"/></svg>);
     default: return null;
   }
 }
@@ -963,6 +965,71 @@ function Planner({weekPlan, setWeekPlan, exDB, allLogs, bw}) {
     setSel(target);
   };
 
+  // ── Share plan as text (Web Share API + clipboard fallback) ──────────────
+  const [shareStatus,setShareStatus]=useState(null); // null | "shared" | "copied" | "error"
+
+  const buildShareText=()=>{
+    const lines=[];
+    lines.push(`KILO — ${sel.toUpperCase()} (${currPlan.length} exo${currPlan.length>1?"s":""})`);
+    lines.push("");
+    currPlan.forEach((p,i)=>{
+      const ex=exDB.find(e=>e.name===p.exo);
+      const isCardio=!!ex?.isCardio;
+      const validated=p.validatedFor===currentWeek;
+      const sug=!validated?suggestObjective(p.exo,exDB,allLogs,p):null;
+      let target;
+      if(isCardio){
+        const dur=validated?p.objDuration:sug?.objDuration;
+        const dist=validated?p.objDistance:sug?.objDistance;
+        target=[dur>0?`${dur} min`:null,dist>0?`${dist} km`:null].filter(Boolean).join(" · ")||"—";
+      } else {
+        const w=validated?p.objPoids:sug?.objPoids;
+        const r=validated?p.objReps:sug?.objReps;
+        const s=validated?p.objSeries:sug?.objSeries;
+        target=`${w>0?`${w}kg`:"PDC"} × ${r} × ${s}`;
+      }
+      let line=`${i+1}. ${p.exo} — ${target}`;
+      const flags=[];
+      if(ex?.mult>1)flags.push(`×${ex.mult} bras`);
+      if(ex?.barAdd>0)flags.push(`+${ex.barAdd}kg barre`);
+      if(ex?.useBodyweight)flags.push("PDC");
+      if(flags.length)line+=` (${flags.join(", ")})`;
+      lines.push(line);
+    });
+    lines.push("");
+    lines.push("— Partagé via Kilo");
+    return lines.join("\n");
+  };
+
+  const handleShare=async()=>{
+    if(currPlan.length===0)return;
+    const text=buildShareText();
+    const title=`Plan ${sel} — Kilo`;
+    try {
+      if(navigator.share){
+        await navigator.share({title,text});
+        setShareStatus("shared");
+      } else if(navigator.clipboard?.writeText){
+        await navigator.clipboard.writeText(text);
+        setShareStatus("copied");
+      } else {
+        const ta=document.createElement("textarea");
+        ta.value=text;ta.style.position="fixed";ta.style.opacity="0";
+        document.body.appendChild(ta);ta.select();
+        document.execCommand("copy");
+        document.body.removeChild(ta);
+        setShareStatus("copied");
+      }
+      setTimeout(()=>setShareStatus(null),2500);
+    } catch(e){
+      if(e?.name!=="AbortError"){
+        setShareStatus("error");
+        setTimeout(()=>setShareStatus(null),2500);
+        console.warn("Share failed",e);
+      }
+    }
+  };
+
   // ── Drag-and-drop (pointer events, mobile + desktop) ─────────────────────
   const dragState=useRef({i:null,startY:0});
   const [dragIdx,setDragIdx]=useState(null);
@@ -1154,6 +1221,12 @@ function Planner({weekPlan, setWeekPlan, exDB, allLogs, bw}) {
   return(
     <div>
       {confirm&&<ConfirmModal title={confirm.title} message={confirm.message} confirmLabel={confirm.confirmLabel} onConfirm={confirm.onConfirm} onClose={()=>setConfirm(null)}/>}
+      {shareStatus&&(
+        <div className="k-pop" style={{position:"fixed",bottom:"calc(96px + env(safe-area-inset-bottom, 0px))",left:"50%",transform:"translateX(-50%)",background:T.cardHi,color:shareStatus==="error"?T.red:T.green,border:`1px solid ${(shareStatus==="error"?T.red:T.green)}55`,borderRadius:12,padding:"10px 14px",fontSize:12,fontWeight:700,zIndex:200,boxShadow:T.shadow,fontFamily:"'IBM Plex Mono'",letterSpacing:.5,display:"flex",alignItems:"center",gap:8,whiteSpace:"nowrap"}}>
+          <Icon name={shareStatus==="error"?"alert":"check"} size={14}/>
+          {shareStatus==="copied"?"Plan copié dans le presse-papier":shareStatus==="shared"?"Plan partagé":"Erreur de partage"}
+        </div>
+      )}
       {/* Day bar */}
       <div style={{display:"flex",gap:6,marginBottom:14,flexWrap:"wrap",alignItems:"center"}}>
         {days.map(d=>(
@@ -1190,6 +1263,7 @@ function Planner({weekPlan, setWeekPlan, exDB, allLogs, bw}) {
         <div style={{display:"flex",gap:6,flexWrap:"wrap",alignItems:"center"}}>
           <IconBtn icon="refresh" variant="warning" onClick={()=>askRegen(sel)} title="Régénérer les objectifs"/>
           <IconBtn icon="copy" onClick={()=>setShowCopy(v=>!v)} disabled={currPlan.length===0} active={showCopy} title="Dupliquer ce plan vers un autre jour"/>
+          <IconBtn icon={shareStatus==="shared"||shareStatus==="copied"?"check":shareStatus==="error"?"alert":"share"} variant={shareStatus==="shared"||shareStatus==="copied"?"success":shareStatus==="error"?"danger":"ghost"} onClick={handleShare} disabled={currPlan.length===0} title="Partager ce plan"/>
           <IconBtn icon="trash" variant="danger" onClick={()=>askRemoveDay(sel)} title="Supprimer ce jour"/>
           <button onClick={()=>setStep("addex")} style={btn(T.red,"#fff",{padding:"0 16px",height:36,fontSize:13,boxShadow:`0 4px 12px ${T.red}44`,display:"inline-flex",alignItems:"center",gap:6})}><Icon name="plus" size={15}/> EXERCICE</button>
         </div>
