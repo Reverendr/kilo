@@ -2009,7 +2009,7 @@ function ExModal({initial, onSave, onDelete, onClose}) {
           Au poids du corps (PDC)
         </label>
         <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:initial&&onDelete?8:0}}>
-          <button onClick={()=>{if(f.name.trim()){onSave(f);onClose();}}} style={btn(T.green,"#fff",{padding:"14px",fontSize:14,boxShadow:`0 4px 12px ${T.green}55`,display:"inline-flex",alignItems:"center",justifyContent:"center",gap:6})}><Icon name="check" size={15}/> Enregistrer</button>
+          <button onClick={()=>{if(f.name.trim()){onSave({...f,isCardio:f.type==="Cardio"});onClose();}}} style={btn(T.green,"#fff",{padding:"14px",fontSize:14,boxShadow:`0 4px 12px ${T.green}55`,display:"inline-flex",alignItems:"center",justifyContent:"center",gap:6})}><Icon name="check" size={15}/> Enregistrer</button>
           <button onClick={onClose} style={ghostBtn({padding:"14px",fontSize:14})}>Annuler</button>
         </div>
         {initial&&onDelete&&<button onClick={()=>setConfirmDel(true)} style={{...ghostBtn({padding:"12px",fontSize:13,width:"100%",color:T.red,borderColor:T.red+"55",display:"inline-flex",alignItems:"center",justifyContent:"center",gap:6})}}><Icon name="trash" size={14}/> Supprimer cet exercice</button>}
@@ -2063,9 +2063,11 @@ export default function App() {
         if(data.exDB)  {
           // Re-introduce any built-in exos that were added to INIT_EX after the user last synced
           // (e.g. cardio exos shipped in a later release). User additions in stored exDB are kept.
-          const names=new Set(data.exDB.map(e=>e.name));
+          // Also normalize isCardio from type so user-created Cardio exos behave correctly.
+          const fixed=data.exDB.map(e=>({...e,isCardio:e.isCardio||e.type==="Cardio"}));
+          const names=new Set(fixed.map(e=>e.name));
           const missing=INIT_EX.filter(e=>!names.has(e.name));
-          setExDB(missing.length?[...data.exDB,...missing]:data.exDB);
+          setExDB(missing.length?[...fixed,...missing]:fixed);
         }
         if(data.bw!=null) { setBw(data.bw); setBwInput(String(data.bw)); }
       }
