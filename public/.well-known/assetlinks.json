@@ -1,0 +1,8 @@
+[{
+  "relation": ["delegate_permission/common.handle_all_urls"],
+  "target": {
+    "namespace": "android_app",
+    "package_name": "app.kilo.romain",
+    "sha256_cert_fingerprints": ["06:38:22:64:42:7D:1E:57:D1:1A:32:F4:69:FD:17:EA:D4:C5:37:CD:32:17:0C:33:A4:E5:CF:BB:45:76:14:2E"]
+  }
+}]
