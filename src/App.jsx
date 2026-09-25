@@ -607,16 +607,74 @@ function ConfirmModal({title="Confirmer",message,confirmLabel="Supprimer",cancel
 }
 
 /* ─── TIMER ──────────────────────────────────────────────────────────────── */
+// The countdown is anchored to an absolute end time mirrored to localStorage, so it keeps
+// counting while the app is backgrounded and survives the OS killing it (cold restart).
+const TIMER_KEY = "kilo-timer";
+function readTimer() {
+  try { const raw=localStorage.getItem(TIMER_KEY); return raw?JSON.parse(raw):null; } catch { return null; }
+}
+// Reopen the timer on boot only if it was left open recently (running, just finished, or paused).
+function shouldRestoreTimer() {
+  const s=readTimer(); if(!s) return false;
+  const now=Date.now();
+  const ok = s.endAt ? now < s.endAt+10*60e3 : now-(s.savedAt||0) < 30*60e3;
+  if(!ok) { try { localStorage.removeItem(TIMER_KEY); } catch {} }
+  return ok;
+}
+// End-of-rest alert. In the foreground a vibration is enough; in the background Chrome ignores
+// navigator.vibrate, so a service-worker notification (which vibrates on its own) is used instead.
+const TIMER_NOTIF_TAG = "kilo-timer";
+const VIBE = [400,150,400,150,400];
+function askNotifPermission() {
+  try { if("Notification" in window && Notification.permission==="default") Notification.requestPermission(); } catch {}
+}
+function clearTimerNotif() {
+  if(!("serviceWorker" in navigator)) return;
+  navigator.serviceWorker.getRegistration().then(reg=>reg?.getNotifications({tag:TIMER_NOTIF_TAG}))
+    .then(ns=>(ns||[]).forEach(n=>n.close())).catch(()=>{});
+}
+function restAlarm() {
+  try { navigator.vibrate?.(VIBE); } catch {}
+  if(document.visibilityState==="visible") return;
+  if(!("serviceWorker" in navigator) || !("Notification" in window) || Notification.permission!=="granted") return;
+  navigator.serviceWorker.getRegistration().then(reg=>reg?.showNotification("Repos terminé",{
+    body:"C'est reparti 💪", tag:TIMER_NOTIF_TAG, renotify:true, vibrate:VIBE, icon:"/icon-192.png", badge:"/icon-192.png",
+  })).catch(()=>{});
+}
 function Timer({onClose}) {
   const P=[60,90,120,180];
-  const [t,setT]=useState(90),[r,setR]=useState(90),[run,setRun]=useState(false),[done,setDone]=useState(false);
-  const iv=useRef();
-  const go=s=>{clearInterval(iv.current);setT(s);setR(s);setDone(false);setRun(true);iv.current=setInterval(()=>setR(x=>{if(x<=1){clearInterval(iv.current);setRun(false);setDone(true);return 0;}return x-1;}),1000);};
-  useEffect(()=>()=>clearInterval(iv.current),[]);
+  const saved=useMemo(readTimer,[]);
+  const [t,setT]=useState(saved?.t??90);
+  const [endAt,setEndAt]=useState(saved?.endAt??null); // null = stopped/paused
+  const [pausedR,setPausedR]=useState(saved?.r??saved?.t??90);
+  const [now,setNow]=useState(Date.now());
+  const r = endAt ? Math.max(0,Math.ceil((endAt-now)/1000)) : pausedR;
+  const run = !!endAt && r>0, done = !!endAt && r===0;
+  useEffect(()=>{
+    if(!run) return;
+    const iv=setInterval(()=>setNow(Date.now()),250);
+    const onVis=()=>setNow(Date.now());
+    document.addEventListener("visibilitychange",onVis);
+    return ()=>{ clearInterval(iv); document.removeEventListener("visibilitychange",onVis); };
+  },[run]);
+  // Fire the alarm once per run. Skip it if the end is long past (app reopened after being killed).
+  useEffect(()=>{
+    if(!endAt) return;
+    const ms=endAt-Date.now();
+    if(ms < -5000) return;
+    const to=setTimeout(restAlarm,Math.max(0,ms));
+    return ()=>clearTimeout(to);
+  },[endAt]);
+  useEffect(()=>{
+    try { localStorage.setItem(TIMER_KEY,JSON.stringify({t,endAt,r:pausedR,savedAt:Date.now()})); } catch {}
+  },[t,endAt,pausedR]);
+  const go=s=>{askNotifPermission();clearTimerNotif();const n=Date.now();setT(s);setNow(n);setEndAt(n+s*1000);};
+  const pause=()=>{setPausedR(r);setEndAt(null);};
+  const close=()=>{ clearTimerNotif(); try { localStorage.removeItem(TIMER_KEY); } catch {} onClose(); };
   const R=72,C=2*Math.PI*R,pct=t>0?1-r/t:1;
   const accent = done?T.green:T.red;
   return(
-    <div onClick={onClose} className="k-modal-bg" style={{position:"fixed",inset:0,background:"#000c",zIndex:999,display:"flex",alignItems:"center",justifyContent:"center",padding:20,backdropFilter:"blur(6px)"}}>
+    <div onClick={close} className="k-modal-bg" style={{position:"fixed",inset:0,background:"#000c",zIndex:999,display:"flex",alignItems:"center",justifyContent:"center",padding:20,backdropFilter:"blur(6px)"}}>
       <div onClick={e=>e.stopPropagation()} className="k-modal" style={{background:T.card,border:`1px solid ${T.border}`,borderRadius:24,padding:"32px 28px 26px",textAlign:"center",minWidth:300,boxShadow:`0 8px 40px rgba(0,0,0,.5), 0 0 0 1px ${T.border}`}}>
         <div style={{fontFamily:"'Bebas Neue'",fontSize:13,letterSpacing:6,color:T.dim,marginBottom:20}}>REPOS</div>
         <svg width={170} height={170} style={{display:"block",margin:"0 auto 18px"}}>
@@ -629,23 +687,51 @@ function Timer({onClose}) {
         </div>
         <div style={{display:"grid",gridTemplateColumns:run?"1fr 1fr":"2fr 1fr",gap:8}}>
           {run
-            ? <button onClick={()=>{clearInterval(iv.current);setRun(false);}} style={btn(T.ghost,T.text,{padding:"14px",fontSize:15,display:"inline-flex",alignItems:"center",justifyContent:"center",gap:8})}><Icon name="pause" size={14}/> Pause</button>
+            ? <button onClick={pause} style={btn(T.ghost,T.text,{padding:"14px",fontSize:15,display:"inline-flex",alignItems:"center",justifyContent:"center",gap:8})}><Icon name="pause" size={14}/> Pause</button>
             : <button onClick={()=>go(t)} style={btn(accent,"#fff",{padding:"14px",fontSize:15,boxShadow:`0 4px 16px ${accent}66`,display:"inline-flex",alignItems:"center",justifyContent:"center",gap:8})}><Icon name="play" size={14}/> Démarrer</button>}
-          <button onClick={onClose} style={ghostBtn({padding:"14px",fontSize:15})}>Fermer</button>
+          <button onClick={close} style={ghostBtn({padding:"14px",fontSize:15})}>Fermer</button>
         </div>
       </div>
     </div>
   );
 }
 
+/* ─── DRAFT PERSISTENCE (séance) ─────────────────────────────────────────── */
+// In-progress séance inputs are mirrored to localStorage so they survive the OS killing the
+// backgrounded app (cold restart). Keys are scoped to today's date; older ones are purged on boot.
+const DRAFT_PREFIX = "kilo-draft|";
+function useDraftState(draftKey, field, initial) {
+  const k = `${DRAFT_PREFIX}${todayFR()}|${draftKey}|${field}`;
+  const [v,setV]=useState(()=>{
+    try { const raw=localStorage.getItem(k); if(raw!=null) return JSON.parse(raw); } catch {}
+    return typeof initial==="function"?initial():initial;
+  });
+  const mounted=useRef(false);
+  useEffect(()=>{
+    // Skip the mount run so untouched cards keep following the plan's objectives.
+    if(!mounted.current){ mounted.current=true; return; }
+    try { localStorage.setItem(k,JSON.stringify(v)); } catch {}
+  },[k,v]);
+  return [v,setV];
+}
+function purgeOldDrafts() {
+  try {
+    const keep=`${DRAFT_PREFIX}${todayFR()}|`;
+    for(let i=localStorage.length-1;i>=0;i--){
+      const k=localStorage.key(i);
+      if(k&&k.startsWith(DRAFT_PREFIX)&&!k.startsWith(keep)) localStorage.removeItem(k);
+    }
+  } catch {}
+}
+
 /* ─── CARDIO CARD (séance) ───────────────────────────────────────────────── */
 function CardioCard({plan, ex, onLog, todayLogs, allLogs}) {
   const tcol = tc("Cardio");
   const col = tcol.bg;
-  const [open,setOpen]=useState(false);
-  const [duration,setDuration]=useState(plan.objDuration?String(plan.objDuration):"");
-  const [distance,setDistance]=useState(plan.objDistance?String(plan.objDistance):"");
-  const [note,setNote]=useState("");
+  const [open,setOpen]=useDraftState(plan.exo,"open",false);
+  const [duration,setDuration]=useDraftState(plan.exo,"duration",plan.objDuration?String(plan.objDuration):"");
+  const [distance,setDistance]=useDraftState(plan.exo,"distance",plan.objDistance?String(plan.objDistance):"");
+  const [note,setNote]=useDraftState(plan.exo,"note","");
 
   const exLogs = allLogs.filter(l=>l.exo===plan.exo).sort((a,b)=>frSort(b.date,a.date));
   const last = exLogs[0];
@@ -740,9 +826,9 @@ function ExCard({plan, exDB, onLog, todayLogs, allLogs, bw}) {
   if (ex?.isCardio) return <CardioCard plan={plan} ex={ex} onLog={onLog} todayLogs={todayLogs} allLogs={allLogs}/>;
   const tcol = tc(ex?.type||"Push");
   const col = tcol.bg;
-  const [open,setOpen]=useState(false);
-  const [series,setSeries]=useState(Array.from({length:plan.objSeries},()=>({poids:String(plan.objPoids||""),reps:"",done:false})));
-  const [note,setNote]=useState("");
+  const [open,setOpen]=useDraftState(plan.exo,"open",false);
+  const [series,setSeries]=useDraftState(plan.exo,"series",()=>Array.from({length:plan.objSeries},()=>({poids:String(plan.objPoids||""),reps:"",done:false})));
+  const [note,setNote]=useDraftState(plan.exo,"note","");
 
   const exLogs = allLogs.filter(l=>l.exo===plan.exo).sort((a,b)=>frSort(b.date,a.date));
   const lastLog = exLogs[0];
@@ -2022,7 +2108,7 @@ function ExModal({initial, onSave, onDelete, onClose}) {
 /* ─── MAIN APP ───────────────────────────────────────────────────────────── */
 export default function App() {
   const [tab,setTab]=useState("seance");
-  const [timer,setTimer]=useState(false);
+  const [timer,setTimer]=useState(shouldRestoreTimer);
   const [exModal,setExModal]=useState(null);
   const [logEdit,setLogEdit]=useState(null);
   const [logAdd,setLogAdd]=useState(null); // null | {defaultDate?}
@@ -2096,6 +2182,7 @@ export default function App() {
 
   // ── LOAD from storage on mount ──────────────────────────────────────────
   useEffect(()=>{
+    purgeOldDrafts();
     (async()=>{
       await reloadFromStorage();
       setLoaded(true);

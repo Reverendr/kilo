@@ -7,7 +7,7 @@ export default defineConfig({
     react(),
     VitePWA({
       registerType: 'autoUpdate',
-      includeAssets: ['icon-192.png', 'icon-512.png', 'apple-touch-icon.png'],
+      includeAssets: ['icon-192.png', 'icon-512.png', 'apple-touch-icon.png', 'sw-timer.js'],
       manifest: {
         id: '/',
         name: 'Kilo',
@@ -28,6 +28,7 @@ export default defineConfig({
       },
       workbox: {
         globPatterns: ['**/*.{js,css,html,ico,png,svg}'],
+        importScripts: ['sw-timer.js'],
         runtimeCaching: [
           {
             urlPattern: /^https:\/\/fonts\.googleapis\.com\/.*/i,
