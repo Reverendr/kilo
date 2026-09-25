@@ -638,14 +638,42 @@ function Timer({onClose}) {
   );
 }
 
+/* ─── DRAFT PERSISTENCE (séance) ─────────────────────────────────────────── */
+// In-progress séance inputs are mirrored to localStorage so they survive the OS killing the
+// backgrounded app (cold restart). Keys are scoped to today's date; older ones are purged on boot.
+const DRAFT_PREFIX = "kilo-draft|";
+function useDraftState(draftKey, field, initial) {
+  const k = `${DRAFT_PREFIX}${todayFR()}|${draftKey}|${field}`;
+  const [v,setV]=useState(()=>{
+    try { const raw=localStorage.getItem(k); if(raw!=null) return JSON.parse(raw); } catch {}
+    return typeof initial==="function"?initial():initial;
+  });
+  const mounted=useRef(false);
+  useEffect(()=>{
+    // Skip the mount run so untouched cards keep following the plan's objectives.
+    if(!mounted.current){ mounted.current=true; return; }
+    try { localStorage.setItem(k,JSON.stringify(v)); } catch {}
+  },[k,v]);
+  return [v,setV];
+}
+function purgeOldDrafts() {
+  try {
+    const keep=`${DRAFT_PREFIX}${todayFR()}|`;
+    for(let i=localStorage.length-1;i>=0;i--){
+      const k=localStorage.key(i);
+      if(k&&k.startsWith(DRAFT_PREFIX)&&!k.startsWith(keep)) localStorage.removeItem(k);
+    }
+  } catch {}
+}
+
 /* ─── CARDIO CARD (séance) ───────────────────────────────────────────────── */
 function CardioCard({plan, ex, onLog, todayLogs, allLogs}) {
   const tcol = tc("Cardio");
   const col = tcol.bg;
-  const [open,setOpen]=useState(false);
-  const [duration,setDuration]=useState(plan.objDuration?String(plan.objDuration):"");
-  const [distance,setDistance]=useState(plan.objDistance?String(plan.objDistance):"");
-  const [note,setNote]=useState("");
+  const [open,setOpen]=useDraftState(plan.exo,"open",false);
+  const [duration,setDuration]=useDraftState(plan.exo,"duration",plan.objDuration?String(plan.objDuration):"");
+  const [distance,setDistance]=useDraftState(plan.exo,"distance",plan.objDistance?String(plan.objDistance):"");
+  const [note,setNote]=useDraftState(plan.exo,"note","");
 
   const exLogs = allLogs.filter(l=>l.exo===plan.exo).sort((a,b)=>frSort(b.date,a.date));
   const last = exLogs[0];
@@ -740,9 +768,9 @@ function ExCard({plan, exDB, onLog, todayLogs, allLogs, bw}) {
   if (ex?.isCardio) return <CardioCard plan={plan} ex={ex} onLog={onLog} todayLogs={todayLogs} allLogs={allLogs}/>;
   const tcol = tc(ex?.type||"Push");
   const col = tcol.bg;
-  const [open,setOpen]=useState(false);
-  const [series,setSeries]=useState(Array.from({length:plan.objSeries},()=>({poids:String(plan.objPoids||""),reps:"",done:false})));
-  const [note,setNote]=useState("");
+  const [open,setOpen]=useDraftState(plan.exo,"open",false);
+  const [series,setSeries]=useDraftState(plan.exo,"series",()=>Array.from({length:plan.objSeries},()=>({poids:String(plan.objPoids||""),reps:"",done:false})));
+  const [note,setNote]=useDraftState(plan.exo,"note","");
 
   const exLogs = allLogs.filter(l=>l.exo===plan.exo).sort((a,b)=>frSort(b.date,a.date));
   const lastLog = exLogs[0];
@@ -2096,6 +2124,7 @@ export default function App() {
 
   // ── LOAD from storage on mount ──────────────────────────────────────────
   useEffect(()=>{
+    purgeOldDrafts();
     (async()=>{
       await reloadFromStorage();
       setLoaded(true);
