@@ -607,16 +607,46 @@ function ConfirmModal({title="Confirmer",message,confirmLabel="Supprimer",cancel
 }
 
 /* ─── TIMER ──────────────────────────────────────────────────────────────── */
+// The countdown is anchored to an absolute end time mirrored to localStorage, so it keeps
+// counting while the app is backgrounded and survives the OS killing it (cold restart).
+const TIMER_KEY = "kilo-timer";
+function readTimer() {
+  try { const raw=localStorage.getItem(TIMER_KEY); return raw?JSON.parse(raw):null; } catch { return null; }
+}
+// Reopen the timer on boot only if it was left open recently (running, just finished, or paused).
+function shouldRestoreTimer() {
+  const s=readTimer(); if(!s) return false;
+  const now=Date.now();
+  const ok = s.endAt ? now < s.endAt+10*60e3 : now-(s.savedAt||0) < 30*60e3;
+  if(!ok) { try { localStorage.removeItem(TIMER_KEY); } catch {} }
+  return ok;
+}
 function Timer({onClose}) {
   const P=[60,90,120,180];
-  const [t,setT]=useState(90),[r,setR]=useState(90),[run,setRun]=useState(false),[done,setDone]=useState(false);
-  const iv=useRef();
-  const go=s=>{clearInterval(iv.current);setT(s);setR(s);setDone(false);setRun(true);iv.current=setInterval(()=>setR(x=>{if(x<=1){clearInterval(iv.current);setRun(false);setDone(true);return 0;}return x-1;}),1000);};
-  useEffect(()=>()=>clearInterval(iv.current),[]);
+  const saved=useMemo(readTimer,[]);
+  const [t,setT]=useState(saved?.t??90);
+  const [endAt,setEndAt]=useState(saved?.endAt??null); // null = stopped/paused
+  const [pausedR,setPausedR]=useState(saved?.r??saved?.t??90);
+  const [now,setNow]=useState(Date.now());
+  const r = endAt ? Math.max(0,Math.ceil((endAt-now)/1000)) : pausedR;
+  const run = !!endAt && r>0, done = !!endAt && r===0;
+  useEffect(()=>{
+    if(!run) return;
+    const iv=setInterval(()=>setNow(Date.now()),250);
+    const onVis=()=>setNow(Date.now());
+    document.addEventListener("visibilitychange",onVis);
+    return ()=>{ clearInterval(iv); document.removeEventListener("visibilitychange",onVis); };
+  },[run]);
+  useEffect(()=>{
+    try { localStorage.setItem(TIMER_KEY,JSON.stringify({t,endAt,r:pausedR,savedAt:Date.now()})); } catch {}
+  },[t,endAt,pausedR]);
+  const go=s=>{const n=Date.now();setT(s);setNow(n);setEndAt(n+s*1000);};
+  const pause=()=>{setPausedR(r);setEndAt(null);};
+  const close=()=>{ try { localStorage.removeItem(TIMER_KEY); } catch {} onClose(); };
   const R=72,C=2*Math.PI*R,pct=t>0?1-r/t:1;
   const accent = done?T.green:T.red;
   return(
-    <div onClick={onClose} className="k-modal-bg" style={{position:"fixed",inset:0,background:"#000c",zIndex:999,display:"flex",alignItems:"center",justifyContent:"center",padding:20,backdropFilter:"blur(6px)"}}>
+    <div onClick={close} className="k-modal-bg" style={{position:"fixed",inset:0,background:"#000c",zIndex:999,display:"flex",alignItems:"center",justifyContent:"center",padding:20,backdropFilter:"blur(6px)"}}>
       <div onClick={e=>e.stopPropagation()} className="k-modal" style={{background:T.card,border:`1px solid ${T.border}`,borderRadius:24,padding:"32px 28px 26px",textAlign:"center",minWidth:300,boxShadow:`0 8px 40px rgba(0,0,0,.5), 0 0 0 1px ${T.border}`}}>
         <div style={{fontFamily:"'Bebas Neue'",fontSize:13,letterSpacing:6,color:T.dim,marginBottom:20}}>REPOS</div>
         <svg width={170} height={170} style={{display:"block",margin:"0 auto 18px"}}>
@@ -629,9 +659,9 @@ function Timer({onClose}) {
         </div>
         <div style={{display:"grid",gridTemplateColumns:run?"1fr 1fr":"2fr 1fr",gap:8}}>
           {run
-            ? <button onClick={()=>{clearInterval(iv.current);setRun(false);}} style={btn(T.ghost,T.text,{padding:"14px",fontSize:15,display:"inline-flex",alignItems:"center",justifyContent:"center",gap:8})}><Icon name="pause" size={14}/> Pause</button>
+            ? <button onClick={pause} style={btn(T.ghost,T.text,{padding:"14px",fontSize:15,display:"inline-flex",alignItems:"center",justifyContent:"center",gap:8})}><Icon name="pause" size={14}/> Pause</button>
             : <button onClick={()=>go(t)} style={btn(accent,"#fff",{padding:"14px",fontSize:15,boxShadow:`0 4px 16px ${accent}66`,display:"inline-flex",alignItems:"center",justifyContent:"center",gap:8})}><Icon name="play" size={14}/> Démarrer</button>}
-          <button onClick={onClose} style={ghostBtn({padding:"14px",fontSize:15})}>Fermer</button>
+          <button onClick={close} style={ghostBtn({padding:"14px",fontSize:15})}>Fermer</button>
         </div>
       </div>
     </div>
@@ -2050,7 +2080,7 @@ function ExModal({initial, onSave, onDelete, onClose}) {
 /* ─── MAIN APP ───────────────────────────────────────────────────────────── */
 export default function App() {
   const [tab,setTab]=useState("seance");
-  const [timer,setTimer]=useState(false);
+  const [timer,setTimer]=useState(shouldRestoreTimer);
   const [exModal,setExModal]=useState(null);
   const [logEdit,setLogEdit]=useState(null);
   const [logAdd,setLogAdd]=useState(null); // null | {defaultDate?}
