@@ -613,7 +613,7 @@ const TIMER_KEY = "kilo-timer";
 function readTimer() {
   try { const raw=localStorage.getItem(TIMER_KEY); return raw?JSON.parse(raw):null; } catch { return null; }
 }
-// Reopen the timer on boot only if it was left open recently (running, just finished, or paused).
+// Restore the timer on boot only if it was active recently (running, just finished, or paused).
 function shouldRestoreTimer() {
   const s=readTimer(); if(!s) return false;
   const now=Date.now();
@@ -641,22 +641,14 @@ function restAlarm() {
     body:"C'est reparti 💪", tag:TIMER_NOTIF_TAG, renotify:true, vibrate:VIBE, icon:"/icon-192.png", badge:"/icon-192.png",
   })).catch(()=>{});
 }
-function Timer({onClose}) {
-  const P=[60,90,120,180];
-  const saved=useMemo(readTimer,[]);
+// Timer state lives in App (not in the modal) so it keeps running while the user navigates.
+// Only the small display components tick; App itself doesn't re-render every second.
+function useRestTimer() {
+  const saved=useMemo(()=>shouldRestoreTimer()?readTimer():null,[]);
   const [t,setT]=useState(saved?.t??90);
-  const [endAt,setEndAt]=useState(saved?.endAt??null); // null = stopped/paused
+  const [endAt,setEndAt]=useState(saved?.endAt??null); // null = paused/stopped
   const [pausedR,setPausedR]=useState(saved?.r??saved?.t??90);
-  const [now,setNow]=useState(Date.now());
-  const r = endAt ? Math.max(0,Math.ceil((endAt-now)/1000)) : pausedR;
-  const run = !!endAt && r>0, done = !!endAt && r===0;
-  useEffect(()=>{
-    if(!run) return;
-    const iv=setInterval(()=>setNow(Date.now()),250);
-    const onVis=()=>setNow(Date.now());
-    document.addEventListener("visibilitychange",onVis);
-    return ()=>{ clearInterval(iv); document.removeEventListener("visibilitychange",onVis); };
-  },[run]);
+  const [active,setActive]=useState(!!saved);
   // Fire the alarm once per run. Skip it if the end is long past (app reopened after being killed).
   useEffect(()=>{
     if(!endAt) return;
@@ -666,31 +658,73 @@ function Timer({onClose}) {
     return ()=>clearTimeout(to);
   },[endAt]);
   useEffect(()=>{
-    try { localStorage.setItem(TIMER_KEY,JSON.stringify({t,endAt,r:pausedR,savedAt:Date.now()})); } catch {}
-  },[t,endAt,pausedR]);
-  const go=s=>{askNotifPermission();clearTimerNotif();const n=Date.now();setT(s);setNow(n);setEndAt(n+s*1000);};
-  const pause=()=>{setPausedR(r);setEndAt(null);};
-  const close=()=>{ clearTimerNotif(); try { localStorage.removeItem(TIMER_KEY); } catch {} onClose(); };
+    try {
+      if(active) localStorage.setItem(TIMER_KEY,JSON.stringify({t,endAt,r:pausedR,savedAt:Date.now()}));
+      else localStorage.removeItem(TIMER_KEY);
+    } catch {}
+  },[t,endAt,pausedR,active]);
+  const go=useCallback(s=>{askNotifPermission();clearTimerNotif();setT(s);setPausedR(s);setEndAt(Date.now()+s*1000);setActive(true);},[]);
+  const pause=useCallback(()=>{setEndAt(e=>{if(e)setPausedR(Math.max(0,Math.ceil((e-Date.now())/1000)));return null;});},[]);
+  const resume=useCallback(()=>{askNotifPermission();setEndAt(Date.now()+pausedR*1000);},[pausedR]);
+  const stop=useCallback(()=>{clearTimerNotif();setEndAt(null);setPausedR(t);setActive(false);},[t]);
+  return {t,endAt,pausedR,active,go,pause,resume,stop};
+}
+function useTimerView(timer) {
+  const [now,setNow]=useState(Date.now());
+  const ticking=!!timer.endAt && timer.endAt>now;
+  useEffect(()=>{
+    if(!timer.endAt) return;
+    setNow(Date.now());
+    const iv=setInterval(()=>setNow(Date.now()),250);
+    const onVis=()=>setNow(Date.now());
+    document.addEventListener("visibilitychange",onVis);
+    return ()=>{ clearInterval(iv); document.removeEventListener("visibilitychange",onVis); };
+  },[timer.endAt]);
+  const r = timer.endAt ? Math.max(0,Math.ceil((timer.endAt-now)/1000)) : timer.pausedR;
+  const run = ticking && r>0, done = !!timer.endAt && r===0, paused = timer.active && !timer.endAt;
+  return {r,run,done,paused};
+}
+const fmtMMSS = r => `${String(Math.floor(r/60)).padStart(2,"0")}:${String(r%60).padStart(2,"0")}`;
+
+// Header pill shown while a rest is in progress — tap to reopen the timer.
+function TimerPill({timer,onOpen}) {
+  const {r,done,paused}=useTimerView(timer);
+  const c = done?T.green:paused?T.dim:T.red;
+  return (
+    <button onClick={onOpen} title="Minuteur de repos"
+      style={{animation:done?"pulseSoft 1.2s ease-in-out infinite":undefined,background:c+"22",color:c,border:`1px solid ${c}66`,borderRadius:10,padding:"0 10px",height:36,fontSize:13,cursor:"pointer",fontFamily:"'IBM Plex Mono'",fontWeight:800,letterSpacing:.5,display:"inline-flex",alignItems:"center",gap:5,WebkitTapHighlightColor:"transparent"}}>
+      <Icon name={paused?"pause":"timer"} size={14}/>{done?"GO":fmtMMSS(r)}
+    </button>
+  );
+}
+
+function Timer({timer,onClose}) {
+  const P=[60,90,120,180];
+  const {t,active,go,pause,resume,stop}=timer;
+  const {r,run,done,paused}=useTimerView(timer);
   const R=72,C=2*Math.PI*R,pct=t>0?1-r/t:1;
   const accent = done?T.green:T.red;
   return(
-    <div onClick={close} className="k-modal-bg" style={{position:"fixed",inset:0,background:"#000c",zIndex:999,display:"flex",alignItems:"center",justifyContent:"center",padding:20,backdropFilter:"blur(6px)"}}>
+    <div onClick={onClose} className="k-modal-bg" style={{position:"fixed",inset:0,background:"#000c",zIndex:999,display:"flex",alignItems:"center",justifyContent:"center",padding:20,backdropFilter:"blur(6px)"}}>
       <div onClick={e=>e.stopPropagation()} className="k-modal" style={{background:T.card,border:`1px solid ${T.border}`,borderRadius:24,padding:"32px 28px 26px",textAlign:"center",minWidth:300,boxShadow:`0 8px 40px rgba(0,0,0,.5), 0 0 0 1px ${T.border}`}}>
         <div style={{fontFamily:"'Bebas Neue'",fontSize:13,letterSpacing:6,color:T.dim,marginBottom:20}}>REPOS</div>
         <svg width={170} height={170} style={{display:"block",margin:"0 auto 18px"}}>
           <circle cx={85} cy={85} r={R} fill="none" stroke={T.ghost} strokeWidth={9}/>
           <circle cx={85} cy={85} r={R} fill="none" stroke={accent} strokeWidth={9} strokeDasharray={C} strokeDashoffset={C-pct*C} strokeLinecap="round" transform="rotate(-90 85 85)" style={{transition:"stroke-dashoffset 1s linear,stroke .3s",filter:`drop-shadow(0 0 8px ${accent}88)`}}/>
-          <text x={85} y={95} textAnchor="middle" fill={accent} style={{fontFamily:"'Bebas Neue'",fontSize:done?44:40,letterSpacing:1}}>{done?"GO":`${String(Math.floor(r/60)).padStart(2,"0")}:${String(r%60).padStart(2,"0")}`}</text>
+          <text x={85} y={95} textAnchor="middle" fill={accent} style={{fontFamily:"'Bebas Neue'",fontSize:done?44:40,letterSpacing:1}}>{done?"GO":fmtMMSS(r)}</text>
         </svg>
         <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:6,marginBottom:18}}>
-          {P.map(s=><button key={s} onClick={()=>go(s)} style={{background:t===s&&(run||done)?T.text:T.ghost,color:t===s&&(run||done)?T.bg:T.textDim,border:"none",borderRadius:10,padding:"10px 0",fontFamily:"'IBM Plex Mono'",fontSize:12,cursor:"pointer",fontWeight:700,letterSpacing:.5,WebkitTapHighlightColor:"transparent"}}>{s<60?`${s}s`:`${s/60}m`}</button>)}
+          {P.map(s=><button key={s} onClick={()=>go(s)} style={{background:t===s&&active?T.text:T.ghost,color:t===s&&active?T.bg:T.textDim,border:"none",borderRadius:10,padding:"10px 0",fontFamily:"'IBM Plex Mono'",fontSize:12,cursor:"pointer",fontWeight:700,letterSpacing:.5,WebkitTapHighlightColor:"transparent"}}>{s<60?`${s}s`:`${s/60}m`}</button>)}
         </div>
-        <div style={{display:"grid",gridTemplateColumns:run?"1fr 1fr":"2fr 1fr",gap:8}}>
+        <div style={{display:"grid",gridTemplateColumns:"2fr 1fr",gap:8}}>
           {run
             ? <button onClick={pause} style={btn(T.ghost,T.text,{padding:"14px",fontSize:15,display:"inline-flex",alignItems:"center",justifyContent:"center",gap:8})}><Icon name="pause" size={14}/> Pause</button>
-            : <button onClick={()=>go(t)} style={btn(accent,"#fff",{padding:"14px",fontSize:15,boxShadow:`0 4px 16px ${accent}66`,display:"inline-flex",alignItems:"center",justifyContent:"center",gap:8})}><Icon name="play" size={14}/> Démarrer</button>}
-          <button onClick={close} style={ghostBtn({padding:"14px",fontSize:15})}>Fermer</button>
+            : <button onClick={()=>paused&&r>0?resume():go(t)} style={btn(accent,"#fff",{padding:"14px",fontSize:15,boxShadow:`0 4px 16px ${accent}66`,display:"inline-flex",alignItems:"center",justifyContent:"center",gap:8})}><Icon name="play" size={14}/> {paused&&r>0?"Reprendre":"Démarrer"}</button>}
+          <button onClick={onClose} style={ghostBtn({padding:"14px",fontSize:15})}>{active?"Masquer":"Fermer"}</button>
         </div>
+        {active&&(
+          <button onClick={()=>{stop();onClose();}} style={{marginTop:12,background:"transparent",border:"none",color:T.dim,fontSize:13,cursor:"pointer",fontFamily:"'Inter',sans-serif",fontWeight:600,textDecoration:"underline",WebkitTapHighlightColor:"transparent"}}>Arrêter le chrono</button>
+        )}
       </div>
     </div>
   );
@@ -2108,7 +2142,8 @@ function ExModal({initial, onSave, onDelete, onClose}) {
 /* ─── MAIN APP ───────────────────────────────────────────────────────────── */
 export default function App() {
   const [tab,setTab]=useState("seance");
-  const [timer,setTimer]=useState(shouldRestoreTimer);
+  const [timer,setTimer]=useState(false); // timer modal visibility
+  const restTimer=useRestTimer();
   const [exModal,setExModal]=useState(null);
   const [logEdit,setLogEdit]=useState(null);
   const [logAdd,setLogAdd]=useState(null); // null | {defaultDate?}
@@ -2376,7 +2411,7 @@ select{appearance:none;-webkit-appearance:none;background-image:url("data:image/
 }
 `}</style>
 
-      {timer&&<Timer onClose={()=>setTimer(false)}/>}
+      {timer&&<Timer timer={restTimer} onClose={()=>setTimer(false)}/>}
       {exModal&&<ExModal initial={exModal.mode==="edit"?exModal.data:null} onSave={d=>{if(exModal.mode==="edit")setExDB(p=>p.map((e,i)=>i===exModal.idx?{...e,...d}:e));else setExDB(p=>[...p,d]);}} onDelete={exModal.mode==="edit"?()=>setExDB(p=>p.filter((_,i)=>i!==exModal.idx)):null} onClose={()=>setExModal(null)}/>}
       {logEdit&&<LogEditor log={logEdit} exDB={exDB} onSave={updateLog} onDelete={removeLog} onClose={()=>setLogEdit(null)} bw={bw}/>}
       {logAdd&&<LogAddModal defaultDate={logAdd.defaultDate} exDB={exDB} onSave={addLog} onClose={()=>setLogAdd(null)} bw={bw}/>}
@@ -2414,7 +2449,9 @@ select{appearance:none;-webkit-appearance:none;background-image:url("data:image/
           ):(
             <button onClick={()=>setShowBwEdit(true)} style={{background:T.ghost,color:T.textDim,border:`1px solid ${T.border}`,borderRadius:10,padding:"0 12px",height:36,fontSize:11,cursor:"pointer",fontFamily:"'IBM Plex Mono'",fontWeight:800,letterSpacing:.5,WebkitTapHighlightColor:"transparent"}}>PDC {bw}kg</button>
           )}
-          <IconBtn icon="timer" onClick={()=>setTimer(true)} title="Minuteur de repos"/>
+          {restTimer.active
+            ? <TimerPill timer={restTimer} onOpen={()=>setTimer(true)}/>
+            : <IconBtn icon="timer" onClick={()=>setTimer(true)} title="Minuteur de repos"/>}
         </div>
       </div>
 
