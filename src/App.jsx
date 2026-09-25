@@ -621,6 +621,26 @@ function shouldRestoreTimer() {
   if(!ok) { try { localStorage.removeItem(TIMER_KEY); } catch {} }
   return ok;
 }
+// End-of-rest alert. In the foreground a vibration is enough; in the background Chrome ignores
+// navigator.vibrate, so a service-worker notification (which vibrates on its own) is used instead.
+const TIMER_NOTIF_TAG = "kilo-timer";
+const VIBE = [400,150,400,150,400];
+function askNotifPermission() {
+  try { if("Notification" in window && Notification.permission==="default") Notification.requestPermission(); } catch {}
+}
+function clearTimerNotif() {
+  if(!("serviceWorker" in navigator)) return;
+  navigator.serviceWorker.getRegistration().then(reg=>reg?.getNotifications({tag:TIMER_NOTIF_TAG}))
+    .then(ns=>(ns||[]).forEach(n=>n.close())).catch(()=>{});
+}
+function restAlarm() {
+  try { navigator.vibrate?.(VIBE); } catch {}
+  if(document.visibilityState==="visible") return;
+  if(!("serviceWorker" in navigator) || !("Notification" in window) || Notification.permission!=="granted") return;
+  navigator.serviceWorker.getRegistration().then(reg=>reg?.showNotification("Repos terminé",{
+    body:"C'est reparti 💪", tag:TIMER_NOTIF_TAG, renotify:true, vibrate:VIBE, icon:"/icon-192.png", badge:"/icon-192.png",
+  })).catch(()=>{});
+}
 function Timer({onClose}) {
   const P=[60,90,120,180];
   const saved=useMemo(readTimer,[]);
@@ -637,12 +657,20 @@ function Timer({onClose}) {
     document.addEventListener("visibilitychange",onVis);
     return ()=>{ clearInterval(iv); document.removeEventListener("visibilitychange",onVis); };
   },[run]);
+  // Fire the alarm once per run. Skip it if the end is long past (app reopened after being killed).
+  useEffect(()=>{
+    if(!endAt) return;
+    const ms=endAt-Date.now();
+    if(ms < -5000) return;
+    const to=setTimeout(restAlarm,Math.max(0,ms));
+    return ()=>clearTimeout(to);
+  },[endAt]);
   useEffect(()=>{
     try { localStorage.setItem(TIMER_KEY,JSON.stringify({t,endAt,r:pausedR,savedAt:Date.now()})); } catch {}
   },[t,endAt,pausedR]);
-  const go=s=>{const n=Date.now();setT(s);setNow(n);setEndAt(n+s*1000);};
+  const go=s=>{askNotifPermission();clearTimerNotif();const n=Date.now();setT(s);setNow(n);setEndAt(n+s*1000);};
   const pause=()=>{setPausedR(r);setEndAt(null);};
-  const close=()=>{ try { localStorage.removeItem(TIMER_KEY); } catch {} onClose(); };
+  const close=()=>{ clearTimerNotif(); try { localStorage.removeItem(TIMER_KEY); } catch {} onClose(); };
   const R=72,C=2*Math.PI*R,pct=t>0?1-r/t:1;
   const accent = done?T.green:T.red;
   return(
